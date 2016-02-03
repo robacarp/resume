@@ -1,0 +1,3 @@
+[submodule "code_samples/arduino/color_shade_pendulum/pendulum"]
+	path = code_samples/arduino/color_shade_pendulum/pendulum
+	url = git@github.com:robacarp/bm_lights.git
