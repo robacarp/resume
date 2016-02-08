@@ -1,0 +1,81 @@
+---
+layout: default
+---
+
+
+<div class="section">
+  <h3>Color Shade Pendulum</h3>
+  <p class="indent"><strong>Written:</strong> August, 2012</p>
+  <p class="indent"><strong>Abstract:</strong>
+    An Arduino programmed for a kinetic sculpture made out of a series of
+    pendulums of varying lengths designed to simulate <a href="https://www.youtube.com/watch?v=eakKfY5aHmY">a murmuration</a>
+    of starlings, to be installed at Burning Man 2012.
+  </p>
+  <p class="indent">
+    <strong>Compiling Status:</strong> unknown
+  </p>
+  <p class="indent">
+    <strong>Full Repository:</strong> <a href="https://github.com/robacarp/bm_lights"> on github </a>
+  </p>
+
+  {% highlight c linenos %}
+    void setup(){
+      /* ...snip...
+       * pin initialization
+       */
+      tick = 0;
+      algorithm_pick = 0;
+      last_algorithm_advance = millis();
+
+      // preload a light switching algorithm
+      fxn = &rainbow;
+    }
+
+    void loop(){
+      switch_algorithms();
+      increment_algorithm();
+      update_lights();
+      delay(DELAY);
+    }
+
+
+    void switch_algorithms(){
+      if (next_algorithm) {
+        /* snip ...
+         * constraining counters
+         */
+        switch (algorithm_pick) {
+          case 0: fxn = &rainbow; break;
+          case 1: fxn = &pink; break;
+          case 2: fxn = &unified_rainbow; break;
+          case 3: fxn = &static_rainbow; break;
+          case 4: fxn = &achromatic; break;
+
+          // red blinking means something broke...
+          default: fxn = &red_blink; break;
+        }
+      }
+    }
+
+    void increment_algorithm(){
+      tick += INCREMENT;
+
+      for (int i=0; i<NUM_LIGHTS; i++)
+        (*fxn)(lights[i], i, tick);
+    }
+
+    // tell the lights to iterate the rainbow
+    void rainbow(Light * light, int position, unsigned long tick){
+      int hue = (tick + (30 * position)) % 360;
+      light->color.set_hsb( hue, 100, 100);
+    }
+
+    // tell the lights to blink red
+    void red_blink(Light * light, int position, unsigned long tick){
+      int bright = tick % 100 > 50 ? 100 : 0;
+      light->color.set_hsb( 1, 100, bright);
+    }
+
+
+  {% endhighlight %}
+</div>

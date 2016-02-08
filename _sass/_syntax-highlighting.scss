@@ -2,8 +2,13 @@
  * Syntax highlighting styles
  */
 .highlight {
-    background: #fff;
-    @extend %vertical-rhythm;
+    background-color: #eee;
+    border-radius: 10px;
+
+    .gutter {
+      border-right: 1px solid #ccc;
+      padding: 0 0.4em;
+    }
 
     .highlighter-rouge & {
       background: #eef;
@@ -68,4 +73,7 @@
     .vg    { color: #008080 } // Name.Variable.Global
     .vi    { color: #008080 } // Name.Variable.Instance
     .il    { color: #099 } // Literal.Number.Integer.Long
+}
+
+figure.highlight {
 }
