@@ -3,12 +3,18 @@
  */
 .highlight {
   background-color: #eee;
-  border-radius: 10px; }
+  border-radius: 10px;
+  overflow-x: scroll; }
+  .highlight pre {
+    margin: 0;
+    padding: 0; }
   .highlight .gutter {
     border-right: 1px solid #ccc;
     padding: 0 0.4em; }
   .highlighter-rouge .highlight {
     background: #eef; }
+  .highlight td.code {
+    padding-right: 1em; }
   .highlight .c {
     color: #998;
     font-style: italic; }

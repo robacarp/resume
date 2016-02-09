@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <title>
+    
+      Resume &lt; Robert Carpenter
+    
+  </title>
+  <link rel="stylesheet" href="/css/stylesheet.css" type="text/css">
+  <link rel="stylesheet" href="/css/syntax-highlighting.css" type="text/css">
+
+  <meta charset="utf-8">
+</head>
+
+  <body>
+    <header>
+  <h1 class="pull-left">Robert Carpenter</h1>
+  <h5 class="pull-right">robert@robacarp.com &mdash; Boulder, Colorado</h2>
+</header>
+<hr>
+
+    <div class='page-content'>
+      <div class='wrapper'>
+        <div class="section">
+  <h3>Ruby Object Generator (for tests and seeds)</h3>
+  <p class="indent"><strong>Written:</strong> May, 2013</p>
+  <p class="indent"><strong>Abstract:</strong>
+    Rails test harness object generators exist but spend way too much time distracting everyone with shiny DSLs. This is a quick replacement for rails fixtures,
+    Factory Girl, Machinist, and probably others. After almost 3 years, it's still the most sane one I can find anywhere.
+  </p>
+  <p class="indent">
+    <strong>Compiling Status:</strong> valid.
+  </p>
+  <p class="indent">
+    <strong>Repository:</strong> <a href="https://gist.github.com/robacarp/3983694"> published as a gist writeup </a>
+  </p>
+
+  <h4>Quick and simple generator definitions in real ruby:</h4>
+  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table style="border-spacing: 0"><tbody><tr><td class="gutter gl" style="text-align: right"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16</pre></td><td class="code"><pre>    <span class="k">class</span> <span class="nc">Generate</span>
+      <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">address</span>
+        <span class="no">Address</span><span class="p">.</span><span class="nf">new</span><span class="p">.</span><span class="nf">tap</span> <span class="k">do</span> <span class="o">|</span><span class="n">a</span><span class="o">|</span>
+          <span class="n">a</span><span class="p">.</span><span class="nf">first_name</span> <span class="o">=</span> <span class="s2">"Elwin"</span>
+          <span class="n">a</span><span class="p">.</span><span class="nf">last_name</span> <span class="o">=</span> <span class="s2">"Ransom"</span>
+          <span class="n">a</span><span class="p">.</span><span class="nf">street_1</span> <span class="o">=</span> <span class="s2">"1 Malacandra Street"</span>
+          <span class="n">a</span><span class="p">.</span><span class="nf">street_2</span> <span class="o">=</span> <span class="s2">"Hyoi's Water Dwelling n1"</span>
+          <span class="n">a</span><span class="p">.</span><span class="nf">city</span> <span class="o">=</span> <span class="s2">"Malacandra"</span>
+
+          <span class="n">a</span><span class="p">.</span><span class="nf">country</span> <span class="o">=</span> <span class="no">Country</span><span class="p">.</span><span class="nf">usa</span>
+          <span class="n">a</span><span class="p">.</span><span class="nf">province</span> <span class="o">=</span> <span class="n">a</span><span class="p">.</span><span class="nf">country</span><span class="p">.</span><span class="nf">provinces</span><span class="p">.</span><span class="nf">sample</span>
+          <span class="n">a</span><span class="p">.</span><span class="nf">postal_code</span> <span class="o">=</span> <span class="s1">'80019'</span>
+        <span class="k">end</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+  <span class="w">
+</span></pre></td></tr></tbody></table></code></pre></figure>
+
+  <h4>Used in a test:</h4>
+  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table style="border-spacing: 0"><tbody><tr><td class="gutter gl" style="text-align: right"><pre class="lineno">1
+2
+3
+4
+5
+6</pre></td><td class="code"><pre>    <span class="c1"># Using the default generator code:</span>
+    <span class="vi">@address1</span> <span class="o">=</span> <span class="no">Generate</span><span class="p">.</span><span class="nf">create</span><span class="p">(</span><span class="ss">:address</span><span class="p">)</span>
+
+    <span class="c1"># Or overriding attributes as needed</span>
+    <span class="vi">@address2</span> <span class="o">=</span> <span class="no">Generate</span><span class="p">.</span><span class="nf">create</span><span class="p">(</span><span class="ss">:address</span><span class="p">,</span> <span class="ss">street_1: </span><span class="s1">'First Street'</span><span class="p">,</span> <span class="ss">city: </span><span class="s1">'Perelandra'</span><span class="p">,</span> <span class="ss">country: </span><span class="s1">'Venus'</span><span class="p">)</span>
+  <span class="w">
+</span></pre></td></tr></tbody></table></code></pre></figure>
+
+  <h4>Full Generate.rb:</h4>
+  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table style="border-spacing: 0"><tbody><tr><td class="gutter gl" style="text-align: right"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62</pre></td><td class="code"><pre>    <span class="k">class</span> <span class="nc">Generate</span>
+      <span class="n">generators</span> <span class="o">=</span> <span class="no">Dir</span><span class="p">[</span><span class="s1">'test/generate/*'</span><span class="p">]</span>
+      <span class="n">generators</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">g</span><span class="o">|</span>
+        <span class="nb">load</span> <span class="n">g</span>
+      <span class="k">end</span>
+
+      <span class="vi">@sequences</span> <span class="o">=</span> <span class="p">{}</span>
+
+      <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">new</span> <span class="nb">name</span><span class="p">,</span> <span class="o">*</span><span class="n">opts</span>
+        <span class="k">unless</span> <span class="nb">self</span><span class="p">.</span><span class="nf">respond_to?</span> <span class="nb">name</span>
+          <span class="k">raise</span> <span class="no">NameError</span><span class="p">,</span> <span class="s2">"No Generator found for </span><span class="si">#{</span><span class="nb">name</span><span class="si">}</span><span class="s2">"</span>
+        <span class="k">end</span>
+
+        <span class="n">attributes</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">opts</span><span class="p">.</span><span class="nf">last</span><span class="p">.</span><span class="nf">kind_of?</span> <span class="no">Hash</span>
+          <span class="n">attributes</span> <span class="o">=</span> <span class="n">opts</span><span class="p">.</span><span class="nf">pop</span>
+        <span class="k">end</span>
+
+        <span class="n">object</span> <span class="o">=</span> <span class="nb">self</span><span class="p">.</span><span class="nf">send</span> <span class="nb">name</span><span class="p">,</span> <span class="o">*</span><span class="n">opts</span>
+        <span class="k">raise</span> <span class="no">RuntimeError</span><span class="p">,</span> <span class="s2">"Generator did not return an ActiveRecord::Base.  Instead found </span><span class="si">#{</span><span class="n">object</span><span class="p">.</span><span class="nf">class</span><span class="si">}</span><span class="s2">"</span> <span class="k">unless</span> <span class="n">object</span><span class="p">.</span><span class="nf">kind_of?</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span>
+
+        <span class="n">apply_attribs</span> <span class="n">object</span><span class="p">,</span> <span class="n">attributes</span>
+
+        <span class="n">object</span>
+      <span class="k">end</span>
+
+      <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">create</span> <span class="nb">name</span><span class="p">,</span> <span class="o">*</span><span class="n">opts</span>
+        <span class="n">object</span> <span class="o">=</span> <span class="kp">new</span> <span class="nb">name</span><span class="p">,</span> <span class="o">*</span><span class="n">opts</span>
+        <span class="n">object</span><span class="p">.</span><span class="nf">save</span>
+
+        <span class="n">object</span>
+      <span class="k">end</span>
+
+      <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">sequence</span> <span class="nb">name</span><span class="p">,</span> <span class="n">val</span> <span class="o">=</span> <span class="kp">nil</span>
+        <span class="k">if</span> <span class="vi">@sequences</span><span class="p">[</span><span class="nb">name</span><span class="p">].</span><span class="nf">nil?</span>
+          <span class="vi">@sequences</span><span class="p">[</span><span class="nb">name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">else</span>
+          <span class="vi">@sequences</span><span class="p">[</span><span class="nb">name</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">end</span>
+
+        <span class="vi">@sequences</span><span class="p">[</span><span class="nb">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span> <span class="k">unless</span> <span class="n">val</span><span class="p">.</span><span class="nf">nil?</span>
+
+        <span class="vi">@sequences</span><span class="p">[</span><span class="nb">name</span><span class="p">]</span>
+      <span class="k">end</span>
+
+      <span class="kp">private</span>
+      <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">apply_attribs</span> <span class="n">object</span><span class="p">,</span> <span class="n">attributes</span>
+        <span class="n">attributes</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span><span class="o">|</span>
+          <span class="n">setter</span> <span class="o">=</span> <span class="s2">"</span><span class="si">#{</span><span class="n">key</span><span class="p">.</span><span class="nf">to_s</span><span class="si">}</span><span class="s2">="</span><span class="p">.</span><span class="nf">to_sym</span>
+          <span class="k">if</span> <span class="n">object</span><span class="p">.</span><span class="nf">respond_to?</span> <span class="n">setter</span>
+            <span class="n">object</span><span class="p">.</span><span class="nf">send</span> <span class="n">setter</span><span class="p">,</span> <span class="n">value</span>
+
+          <span class="k">elsif</span> <span class="n">object</span><span class="p">.</span><span class="nf">respond_to?</span> <span class="n">key</span>
+            <span class="n">object</span><span class="p">.</span><span class="nf">send</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span>
+
+          <span class="k">else</span>
+            <span class="k">raise</span> <span class="no">ArgumentError</span><span class="p">,</span> <span class="s2">"Cannot set </span><span class="si">#{</span><span class="n">key</span><span class="si">}</span><span class="s2"> on </span><span class="si">#{</span><span class="n">object</span><span class="p">.</span><span class="nf">class</span><span class="si">}</span><span class="s2">"</span>
+          <span class="k">end</span>
+        <span class="k">end</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+  <span class="w">
+</span></pre></td></tr></tbody></table></code></pre></figure>
+</div>
+
+      </div>
+    </div>
+    <hr>
+
+<footer>
+  <div id="meta" class="section">
+    <h5>Meta</h5>
+    <p class="small indent">This resume and related files are available as a public git reposotory at <a href="https://bitbucket.org/robacarp/resume">git@bitbucket.org:robacarp/resume.git</a></p>
+  </div>
+</footer>
+
+  </body>
+</html>
