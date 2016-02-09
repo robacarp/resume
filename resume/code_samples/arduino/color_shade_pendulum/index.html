@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <title>
+    
+      Resume &lt; Robert Carpenter
+    
+  </title>
+  <link rel="stylesheet" href="/stylesheet.css" type="text/css">
+
+  <meta charset="utf-8">
+</head>
+
+  <body>
+    <header>
+  <h1 class="pull-left">Robert Carpenter</h1>
+  <h5 class="pull-right">robert@robacarp.com &mdash; Boulder, Colorado</h2>
+</header>
+<hr>
+
+    <div class='page-content'>
+      <div class='wrapper'>
+        <div class="section">
+  <h3>Color Shade Pendulum</h3>
+  <p class="indent"><strong>Written:</strong> August, 2012</p>
+  <p class="indent"><strong>Abstract:</strong>
+    An Arduino programmed for a kinetic sculpture made out of a series of
+    pendulums of varying lengths designed to simulate <a href="https://www.youtube.com/watch?v=eakKfY5aHmY">a murmuration</a>
+    of starlings, to be installed at Burning Man 2012.
+  </p>
+  <p class="indent">
+    <strong>Compiling Status:</strong> unknown
+  </p>
+  <p class="indent">
+    <strong>Full Repository:</strong> <a href="https://github.com/robacarp/bm_lights"> on github </a>
+  </p>
+
+  <figure class="highlight"><pre><code class="language-c" data-lang="c"><table style="border-spacing: 0"><tbody><tr><td class="gutter gl" style="text-align: right"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59</pre></td><td class="code"><pre>    <span class="kt">void</span> <span class="n">setup</span><span class="p">(){</span>
+      <span class="cm">/* ...snip...
+       * pin initialization
+       */</span>
+      <span class="n">tick</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+      <span class="n">algorithm_pick</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+      <span class="n">last_algorithm_advance</span> <span class="o">=</span> <span class="n">millis</span><span class="p">();</span>
+
+      <span class="c1">// preload a light switching algorithm
+</span>      <span class="n">fxn</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">rainbow</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="kt">void</span> <span class="n">loop</span><span class="p">(){</span>
+      <span class="n">switch_algorithms</span><span class="p">();</span>
+      <span class="n">increment_algorithm</span><span class="p">();</span>
+      <span class="n">update_lights</span><span class="p">();</span>
+      <span class="n">delay</span><span class="p">(</span><span class="n">DELAY</span><span class="p">);</span>
+    <span class="p">}</span>
+
+
+    <span class="kt">void</span> <span class="n">switch_algorithms</span><span class="p">(){</span>
+      <span class="k">if</span> <span class="p">(</span><span class="n">next_algorithm</span><span class="p">)</span> <span class="p">{</span>
+        <span class="cm">/* snip ...
+         * constraining counters
+         */</span>
+        <span class="k">switch</span> <span class="p">(</span><span class="n">algorithm_pick</span><span class="p">)</span> <span class="p">{</span>
+          <span class="k">case</span> <span class="mi">0</span><span class="p">:</span> <span class="n">fxn</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">rainbow</span><span class="p">;</span> <span class="k">break</span><span class="p">;</span>
+          <span class="k">case</span> <span class="mi">1</span><span class="p">:</span> <span class="n">fxn</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">pink</span><span class="p">;</span> <span class="k">break</span><span class="p">;</span>
+          <span class="k">case</span> <span class="mi">2</span><span class="p">:</span> <span class="n">fxn</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">unified_rainbow</span><span class="p">;</span> <span class="k">break</span><span class="p">;</span>
+          <span class="k">case</span> <span class="mi">3</span><span class="p">:</span> <span class="n">fxn</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">static_rainbow</span><span class="p">;</span> <span class="k">break</span><span class="p">;</span>
+          <span class="k">case</span> <span class="mi">4</span><span class="p">:</span> <span class="n">fxn</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">achromatic</span><span class="p">;</span> <span class="k">break</span><span class="p">;</span>
+
+          <span class="c1">// red blinking means something broke...
+</span>          <span class="nl">default:</span> <span class="n">fxn</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">red_blink</span><span class="p">;</span> <span class="k">break</span><span class="p">;</span>
+        <span class="p">}</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="kt">void</span> <span class="n">increment_algorithm</span><span class="p">(){</span>
+      <span class="n">tick</span> <span class="o">+=</span> <span class="n">INCREMENT</span><span class="p">;</span>
+
+      <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="n">i</span><span class="o">&lt;</span><span class="n">NUM_LIGHTS</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span>
+        <span class="p">(</span><span class="o">*</span><span class="n">fxn</span><span class="p">)(</span><span class="n">lights</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">i</span><span class="p">,</span> <span class="n">tick</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="c1">// tell the lights to iterate the rainbow
+</span>    <span class="kt">void</span> <span class="n">rainbow</span><span class="p">(</span><span class="n">Light</span> <span class="o">*</span> <span class="n">light</span><span class="p">,</span> <span class="kt">int</span> <span class="n">position</span><span class="p">,</span> <span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">tick</span><span class="p">){</span>
+      <span class="kt">int</span> <span class="n">hue</span> <span class="o">=</span> <span class="p">(</span><span class="n">tick</span> <span class="o">+</span> <span class="p">(</span><span class="mi">30</span> <span class="o">*</span> <span class="n">position</span><span class="p">))</span> <span class="o">%</span> <span class="mi">360</span><span class="p">;</span>
+      <span class="n">light</span><span class="o">-&gt;</span><span class="n">color</span><span class="p">.</span><span class="n">set_hsb</span><span class="p">(</span> <span class="n">hue</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">100</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="c1">// tell the lights to blink red
+</span>    <span class="kt">void</span> <span class="n">red_blink</span><span class="p">(</span><span class="n">Light</span> <span class="o">*</span> <span class="n">light</span><span class="p">,</span> <span class="kt">int</span> <span class="n">position</span><span class="p">,</span> <span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">tick</span><span class="p">){</span>
+      <span class="kt">int</span> <span class="n">bright</span> <span class="o">=</span> <span class="n">tick</span> <span class="o">%</span> <span class="mi">100</span> <span class="o">&gt;</span> <span class="mi">50</span> <span class="o">?</span> <span class="mi">100</span> <span class="o">:</span> <span class="mi">0</span><span class="p">;</span>
+      <span class="n">light</span><span class="o">-&gt;</span><span class="n">color</span><span class="p">.</span><span class="n">set_hsb</span><span class="p">(</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="n">bright</span><span class="p">);</span>
+    <span class="p">}</span>
+
+
+  <span class="w">
+</span></pre></td></tr></tbody></table></code></pre></figure>
+</div>
+
+      </div>
+    </div>
+    <hr>
+
+<footer>
+  <div id="meta" class="section">
+    <h5>Meta</h5>
+    <p class="small indent">This resume and related files are available as a public git reposotory at <a href="https://bitbucket.org/robacarp/resume">git@bitbucket.org:robacarp/resume.git</a></p>
+  </div>
+</footer>
+
+  </body>
+</html>
