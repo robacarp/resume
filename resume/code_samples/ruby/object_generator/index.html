@@ -1,0 +1,111 @@
+---
+layout: default
+---
+
+<div class="section">
+  <h3>Ruby Object Generator (for tests and seeds)</h3>
+  <p class="indent"><strong>Written:</strong> May, 2013</p>
+  <p class="indent"><strong>Abstract:</strong>
+    Rails test harness object generators exist but spend way too much time distracting everyone with shiny DSLs. This is a quick replacement for rails fixtures,
+    Factory Girl, Machinist, and probably others. After almost 3 years, it's still the most sane one I can find anywhere.
+  </p>
+  <p class="indent">
+    <strong>Compiling Status:</strong> valid.
+  </p>
+  <p class="indent">
+    <strong>Repository:</strong> <a href="https://gist.github.com/robacarp/3983694"> published as a gist writeup </a>
+  </p>
+
+  <h4>Quick and simple generator definitions in real ruby:</h4>
+  {% highlight ruby linenos %}
+    class Generate
+      def self.address
+        Address.new.tap do |a|
+          a.first_name = "Elwin"
+          a.last_name = "Ransom"
+          a.street_1 = "1 Malacandra Street"
+          a.street_2 = "Hyoi's Water Dwelling n1"
+          a.city = "Malacandra"
+
+          a.country = Country.usa
+          a.province = a.country.provinces.sample
+          a.postal_code = '80019'
+        end
+      end
+    end
+  {% endhighlight %}
+
+  <h4>Used in a test:</h4>
+  {% highlight ruby linenos %}
+    # Using the default generator code:
+    @address1 = Generate.create(:address)
+
+    # Or overriding attributes as needed
+    @address2 = Generate.create(:address, street_1: 'First Street', city: 'Perelandra', country: 'Venus')
+  {% endhighlight %}
+
+  <h4>Full Generate.rb:</h4>
+  {% highlight ruby linenos %}
+    class Generate
+      generators = Dir['test/generate/*']
+      generators.each do |g|
+        load g
+      end
+
+      @sequences = {}
+
+      def self.new name, *opts
+        unless self.respond_to? name
+          raise NameError, "No Generator found for #{name}"
+        end
+
+        attributes = {}
+        if opts.last.kind_of? Hash
+          attributes = opts.pop
+        end
+
+        object = self.send name, *opts
+        raise RuntimeError, "Generator did not return an ActiveRecord::Base.  Instead found #{object.class}" unless object.kind_of? ActiveRecord::Base
+
+        apply_attribs object, attributes
+
+        object
+      end
+
+      def self.create name, *opts
+        object = new name, *opts
+        object.save
+
+        object
+      end
+
+      def self.sequence name, val = nil
+        if @sequences[name].nil?
+          @sequences[name] = 0
+        else
+          @sequences[name] += 1
+        end
+
+        @sequences[name] = val unless val.nil?
+
+        @sequences[name]
+      end
+
+      private
+      def self.apply_attribs object, attributes
+        attributes.each do |(key, value)|
+          setter = "#{key.to_s}=".to_sym
+          if object.respond_to? setter
+            object.send setter, value
+
+          elsif object.respond_to? key
+            object.send key, value
+
+          else
+            raise ArgumentError, "Cannot set #{key} on #{object.class}"
+          end
+        end
+      end
+    end
+  {% endhighlight %}
+</div>

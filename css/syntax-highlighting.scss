@@ -7,6 +7,12 @@
 .highlight {
     background-color: #eee;
     border-radius: 10px;
+    overflow-x: scroll;
+
+    pre {
+      margin: 0;
+      padding: 0;
+    }
 
     .gutter {
       border-right: 1px solid #ccc;
@@ -15,6 +21,10 @@
 
     .highlighter-rouge & {
       background: #eef;
+    }
+
+    td.code {
+      padding-right: 1em;
     }
 
     .c     { color: #998; font-style: italic } // Comment
