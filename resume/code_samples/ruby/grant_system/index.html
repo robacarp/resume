@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <title>
+    
+      Resume &lt; Robert Carpenter
+    
+  </title>
+  <link rel="stylesheet" href="/css/stylesheet.css" type="text/css">
+  <link rel="stylesheet" href="/css/syntax-highlighting.css" type="text/css">
+
+  <meta charset="utf-8">
+  
+  <meta name="robots" content="noindex" />
+  
+</head>
+
+  <body>
+    <header>
+  <h1 class="pull-left">Robert Carpenter</h1>
+  <h5 class="pull-right">robert@robacarp.com &mdash; Boulder, Colorado</h2>
+</header>
+<hr>
+
+    <div class='page-content'>
+      <div class='wrapper'>
+        <div class="section">
+  <h3>Generic Authentication Backend</h3>
+  <p class="indent"><strong>Written:</strong> September, 2015</p>
+  <p class="indent"><strong>Abstract:</strong>
+    Large rails applications often have a diaspora of methods used to determine if a user should be allowed to
+    perform some action on the system, resulting in a difficult to maintain and debug authorization system.
+  </p>
+  <p class="indent">
+    These classes represent my attempt to provide a central system for authorization with the following requirements:
+  </p>
+  <ul>
+    <li>Public access can be explictly granted or revoked.</li>
+    <li>Support polymorphic relationships throughout.</li>
+    <li>Easily taught to traverse relationships between models efficiently, querying at O(1) where possible.</li>
+    <li>Allows for granting access via user collection mechanisms such as ownership data, or membership data.</li>
+    <li>Support granting for CRUD actions as well as unique per-object actions.</li>
+  </ul>
+  <p class="indent">
+    <strong>Compiling Status:</strong> valid.
+  </p>
+  <p class="indent">
+    <strong>Repository:</strong> Private, email for details.
+  </p>
+
+  <h4>Example usage in a Rails ActiveModel:</h4>
+  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table style="border-spacing: 0"><tbody><tr><td class="gutter gl" style="text-align: right"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17</pre></td><td class="code"><pre>    <span class="k">class</span> <span class="nc">Group</span> <span class="o">&lt;</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span>
+      <span class="n">belongs_to</span> <span class="ss">:owner</span><span class="p">,</span> <span class="ss">class_name: </span><span class="no">User</span><span class="p">,</span> <span class="ss">required: </span><span class="kp">true</span>
+      <span class="n">has_many</span> <span class="ss">:memberships</span><span class="p">,</span> <span class="ss">class_name: </span><span class="no">UserGroup</span><span class="p">,</span> <span class="ss">dependent: :destroy</span>
+      <span class="n">has_many</span> <span class="ss">:users</span><span class="p">,</span> <span class="ss">through: :memberships</span>
+
+      <span class="kp">include</span> <span class="no">Accessible</span>
+    <span class="k">end</span>
+
+    <span class="k">class</span> <span class="nc">User</span> <span class="o">&lt;</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span>
+      <span class="n">has_many</span> <span class="ss">:memberships</span><span class="p">,</span> <span class="ss">class_name: </span><span class="no">UserGroup</span><span class="p">,</span> <span class="ss">dependent: :destroy</span>
+      <span class="n">has_many</span> <span class="ss">:groups</span>
+
+      <span class="k">def</span> <span class="nf">everyone</span>
+        <span class="no">Everyone</span><span class="p">.</span><span class="nf">new</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+  <span class="w">
+</span></pre></td></tr></tbody></table></code></pre></figure>
+
+  <h4>Accessible concern:</h4>
+  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table style="border-spacing: 0"><tbody><tr><td class="gutter gl" style="text-align: right"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16</pre></td><td class="code"><pre>    <span class="k">module</span> <span class="nn">Accessible</span>
+      <span class="kp">extend</span> <span class="no">ActiveSupport</span><span class="o">::</span><span class="no">Concern</span>
+
+      <span class="n">included</span> <span class="k">do</span> <span class="o">|</span><span class="n">into</span><span class="o">|</span>
+        <span class="n">has_many</span> <span class="ss">:grants</span><span class="p">,</span> <span class="ss">as: :resource</span>
+      <span class="k">end</span>
+
+      <span class="k">def</span> <span class="nf">grant!</span><span class="p">(</span><span class="n">grantee</span><span class="p">,</span> <span class="n">to</span><span class="p">:)</span>
+        <span class="no">Grant</span><span class="p">.</span><span class="nf">grant!</span> <span class="ss">resource: </span><span class="nb">self</span><span class="p">,</span> <span class="ss">action: </span><span class="n">to</span><span class="p">,</span> <span class="ss">grantee: </span><span class="n">grantee</span>
+      <span class="k">end</span>
+
+      <span class="k">def</span> <span class="nf">revoke!</span><span class="p">(</span><span class="n">grantee</span><span class="p">,</span> <span class="n">to</span><span class="p">:)</span>
+        <span class="no">Grant</span><span class="p">.</span><span class="nf">grant!</span> <span class="ss">resource: </span><span class="nb">self</span><span class="p">,</span> <span class="ss">action: </span><span class="n">to</span><span class="p">,</span> <span class="ss">grantee: </span><span class="n">grantee</span><span class="p">,</span> <span class="ss">revocation: </span><span class="kp">true</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+  <span class="w">
+</span></pre></td></tr></tbody></table></code></pre></figure>
+
+  <h4>Example usage for awarding and referencing permissions</h4>
+  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table style="border-spacing: 0"><tbody><tr><td class="gutter gl" style="text-align: right"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21</pre></td><td class="code"><pre>    <span class="k">class</span> <span class="nc">GroupsController</span> <span class="o">&lt;</span> <span class="no">ApplicationController</span>
+      <span class="n">before_action</span> <span class="ss">:fetch_group</span><span class="p">,</span> <span class="ss">only: :show</span>
+
+      <span class="k">def</span> <span class="nf">create</span>
+        <span class="vi">@group</span> <span class="o">=</span> <span class="no">Group</span><span class="p">.</span><span class="nf">create</span><span class="p">(</span><span class="ss">owner: </span><span class="n">current_user</span><span class="p">)</span>
+        <span class="n">current_user</span><span class="p">.</span><span class="nf">memberships</span><span class="p">.</span><span class="nf">create</span> <span class="ss">membershippable: </span><span class="vi">@group</span>
+        <span class="vi">@group</span><span class="p">.</span><span class="nf">grant!</span> <span class="vi">@owner</span><span class="p">,</span> <span class="ss">to: </span><span class="p">[</span><span class="ss">:read</span><span class="p">,</span> <span class="ss">:update</span><span class="p">,</span> <span class="ss">:delete</span><span class="p">]</span>
+        <span class="vi">@group</span><span class="p">.</span><span class="nf">grant!</span> <span class="vi">@group</span><span class="p">,</span> <span class="ss">to: :read</span>
+      <span class="k">end</span>
+
+      <span class="k">def</span> <span class="nf">show</span>
+        <span class="k">unless</span> <span class="no">Grant</span><span class="p">.</span><span class="nf">can?</span> <span class="n">current_user</span><span class="p">,</span> <span class="ss">:read</span><span class="p">,</span> <span class="vi">@group</span>
+          <span class="n">render</span> <span class="ss">nothing: </span><span class="kp">true</span><span class="p">,</span> <span class="ss">status: :unauthorized</span> <span class="n">and</span> <span class="k">return</span>
+        <span class="k">end</span>
+      <span class="k">end</span>
+
+      <span class="kp">private</span> <span class="k">def</span> <span class="nf">fetch_group</span>
+        <span class="vi">@group</span> <span class="o">=</span> <span class="no">Group</span><span class="p">.</span><span class="nf">find_by</span> <span class="ss">id: </span><span class="n">params</span><span class="p">[</span><span class="ss">:id</span><span class="p">]</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+  <span class="w">
+</span></pre></td></tr></tbody></table></code></pre></figure>
+
+  <h4>Action &amp; Grant Models</h4>
+  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table style="border-spacing: 0"><tbody><tr><td class="gutter gl" style="text-align: right"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+97
+98
+99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
+158
+159
+160
+161
+162
+163
+164
+165
+166
+167
+168
+169
+170
+171
+172
+173
+174
+175
+176
+177
+178
+179
+180
+181
+182
+183
+184
+185
+186
+187
+188
+189
+190
+191
+192
+193
+194
+195
+196
+197
+198</pre></td><td class="code"><pre>    <span class="k">class</span> <span class="nc">Action</span> <span class="o">&lt;</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span>
+      <span class="n">validates</span> <span class="ss">:name</span><span class="p">,</span> <span class="ss">presence: </span><span class="kp">true</span><span class="p">,</span> <span class="ss">uniqueness: </span><span class="kp">true</span>
+
+      <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">named</span> <span class="nb">name</span>
+        <span class="n">where</span><span class="p">(</span> <span class="ss">name: </span><span class="nb">name</span><span class="p">.</span><span class="nf">downcase</span> <span class="p">).</span><span class="nf">first_or_create</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="c1">#############################################################</span>
+
+    <span class="k">class</span> <span class="nc">Grant</span> <span class="o">&lt;</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span>
+      <span class="n">has_and_belongs_to_many</span> <span class="ss">:actions</span>
+      <span class="n">validates</span> <span class="ss">:actions</span><span class="p">,</span> <span class="ss">presence: </span><span class="kp">true</span>
+
+      <span class="n">belongs_to</span> <span class="ss">:resource</span><span class="p">,</span> <span class="ss">polymorphic: </span><span class="kp">true</span><span class="p">,</span> <span class="ss">required: </span><span class="kp">true</span>
+      <span class="n">belongs_to</span> <span class="ss">:grantee</span><span class="p">,</span>  <span class="ss">polymorphic: </span><span class="kp">true</span><span class="p">,</span> <span class="ss">required: </span><span class="kp">true</span>
+      <span class="n">belongs_to</span> <span class="ss">:grantor</span><span class="p">,</span> <span class="ss">class_name: </span><span class="s1">'User'</span>
+
+      <span class="k">def</span> <span class="nf">permissions</span>
+        <span class="n">actions</span><span class="p">.</span><span class="nf">map</span> <span class="o">&amp;</span><span class="ss">:name</span>
+      <span class="k">end</span>
+
+      <span class="k">def</span> <span class="nf">permissions</span><span class="o">=</span> <span class="n">action</span>
+        <span class="n">actions</span> <span class="o">=</span> <span class="no">Array</span><span class="p">(</span><span class="n">action</span><span class="p">).</span><span class="nf">dup</span><span class="p">.</span><span class="nf">compact</span>
+        <span class="n">actions</span><span class="p">.</span><span class="nf">map!</span> <span class="p">{</span> <span class="o">|</span><span class="nb">name</span><span class="o">|</span> <span class="no">Action</span><span class="p">.</span><span class="nf">named</span> <span class="nb">name</span> <span class="p">}</span>
+        <span class="nb">self</span><span class="p">.</span><span class="nf">actions</span> <span class="o">=</span> <span class="n">actions</span>
+      <span class="k">end</span>
+
+      <span class="c1"># Provide a single entry point for creating grants</span>
+      <span class="c1">#</span>
+      <span class="c1"># @param resource [ActiveRecord] the resource that access will be granted or restricted to</span>
+      <span class="c1"># @param action [Array&lt;Symbol&gt;]  the access level that is being granted or restricted</span>
+      <span class="c1"># @param grantee [ActiveRecord] the user that is being awarded the permissions</span>
+      <span class="c1"># @param revocation [Boolean] if false, the grant created will be a revocation</span>
+      <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">grant!</span><span class="p">(</span><span class="ss">resource: </span><span class="kp">nil</span><span class="p">,</span> <span class="ss">action: </span><span class="kp">nil</span><span class="p">,</span> <span class="ss">grantee: </span><span class="kp">nil</span><span class="p">,</span> <span class="ss">revocation: </span><span class="kp">false</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">grantee</span><span class="p">.</span><span class="nf">kind_of?</span> <span class="no">Class</span>
+          <span class="n">grantee</span> <span class="o">=</span> <span class="n">grantee</span><span class="p">.</span><span class="nf">new</span>
+        <span class="k">end</span>
+
+        <span class="n">grant</span> <span class="o">=</span> <span class="no">Grant</span><span class="p">.</span><span class="nf">new</span>
+        <span class="n">grant</span><span class="p">.</span><span class="nf">resource</span>    <span class="o">=</span> <span class="n">resource</span>
+        <span class="n">grant</span><span class="p">.</span><span class="nf">grantee</span>     <span class="o">=</span> <span class="n">grantee</span>
+        <span class="n">grant</span><span class="p">.</span><span class="nf">revocation</span>  <span class="o">=</span> <span class="n">revocation</span>
+
+        <span class="n">grant</span><span class="p">.</span><span class="nf">permissions</span> <span class="o">=</span> <span class="n">action</span>
+
+        <span class="n">grant</span><span class="p">.</span><span class="nf">save!</span>
+
+        <span class="n">grant</span>
+      <span class="k">end</span>
+
+      <span class="c1"># Destroy grants relating to a resource and grantee</span>
+      <span class="c1">#</span>
+      <span class="c1"># @param resource [ActiveRecord] the resource to remove all grants from</span>
+      <span class="c1"># @param action [Array&lt;Symbol&gt;]  the action to remove all grants from. Default: all actions.</span>
+      <span class="c1"># @param grantee [ActiveRecord]  the user to remove permissions from. Default: all users.</span>
+      <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">ungrant!</span><span class="p">(</span><span class="n">resource</span><span class="p">:,</span> <span class="ss">action: </span><span class="kp">nil</span><span class="p">,</span> <span class="ss">grantee: </span><span class="kp">nil</span><span class="p">)</span>
+        <span class="nb">fail</span> <span class="s1">'No resource provided'</span> <span class="k">unless</span> <span class="n">resource</span>
+
+        <span class="k">if</span> <span class="n">grantee</span><span class="p">.</span><span class="nf">kind_of?</span> <span class="no">Class</span>
+          <span class="n">grantee</span> <span class="o">=</span> <span class="n">grantee</span><span class="p">.</span><span class="nf">new</span>
+        <span class="k">end</span>
+
+        <span class="n">context</span> <span class="o">=</span> <span class="no">Grant</span><span class="p">.</span><span class="nf">where</span><span class="p">(</span><span class="ss">resource: </span><span class="n">resource</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">grantee</span>
+          <span class="n">context</span> <span class="o">=</span> <span class="n">context</span><span class="p">.</span><span class="nf">where</span><span class="p">(</span><span class="ss">grantee: </span><span class="n">grantee</span><span class="p">)</span>
+        <span class="k">end</span>
+
+        <span class="k">if</span> <span class="n">action</span>
+          <span class="n">context</span> <span class="o">=</span> <span class="n">context</span><span class="p">.</span><span class="nf">where</span><span class="p">(</span><span class="ss">actions: </span><span class="no">Array</span><span class="p">(</span><span class="n">action</span><span class="p">))</span>
+        <span class="k">end</span>
+
+        <span class="n">context</span><span class="p">.</span><span class="nf">delete_all</span>
+      <span class="k">end</span>
+
+      <span class="c1"># A list of classes that shouldn't be turned into subqueries.</span>
+      <span class="c1">#</span>
+      <span class="c1"># @return [Array&lt;Class&gt;] list of classes</span>
+      <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">filtered_classes</span>
+        <span class="p">[</span> <span class="no">Membership</span> <span class="p">]</span>
+      <span class="k">end</span>
+
+      <span class="c1"># Determine if a grantee can perform an action on a resource.</span>
+      <span class="c1">#</span>
+      <span class="c1"># @note When a user has both a grant and a revocation, the revocation takes precedence.</span>
+      <span class="c1">#</span>
+      <span class="c1"># @example</span>
+      <span class="c1">#   Grant.can? a_user, :read, some_content</span>
+      <span class="c1">#   Grant.can? @user, :edit, @dashboard</span>
+      <span class="c1">#</span>
+      <span class="c1"># @param grantee [#id, #class]</span>
+      <span class="c1"># @param resource [#id, #class]</span>
+      <span class="c1"># @param action [Symbol]</span>
+      <span class="c1"># @return [Boolean]</span>
+      <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">can?</span> <span class="n">grantee</span><span class="p">,</span> <span class="n">action_list</span><span class="p">,</span> <span class="n">resource</span>
+        <span class="k">if</span> <span class="n">grantee</span><span class="p">.</span><span class="nf">kind_of?</span> <span class="no">Class</span>
+          <span class="n">grantee</span> <span class="o">=</span> <span class="n">grantee</span><span class="p">.</span><span class="nf">new</span>
+        <span class="k">end</span>
+
+        <span class="n">action_list</span> <span class="o">=</span> <span class="no">Array</span><span class="p">(</span><span class="n">action_list</span><span class="p">)</span>
+
+        <span class="n">action</span> <span class="o">=</span> <span class="no">Action</span><span class="p">.</span><span class="nf">arel_table</span>
+        <span class="n">grant</span> <span class="o">=</span> <span class="no">Grant</span><span class="p">.</span><span class="nf">arel_table</span>
+        <span class="n">action_grant</span> <span class="o">=</span> <span class="no">ActionsGrants</span><span class="p">.</span><span class="nf">arel_table</span>
+
+        <span class="c1"># Query from actions_grants, but pull in actions and grants</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="n">action_grant</span><span class="p">.</span><span class="nf">project</span><span class="p">(</span><span class="no">Arel</span><span class="p">.</span><span class="nf">star</span><span class="p">)</span>
+                            <span class="p">.</span><span class="nf">join</span><span class="p">(</span> <span class="n">action</span> <span class="p">).</span><span class="nf">on</span><span class="p">(</span> <span class="n">action_grant</span><span class="p">[</span><span class="ss">:action_id</span><span class="p">].</span><span class="nf">eq</span> <span class="n">action</span><span class="p">[</span><span class="ss">:id</span><span class="p">]</span> <span class="p">)</span>
+                            <span class="p">.</span><span class="nf">join</span><span class="p">(</span> <span class="n">grant</span> <span class="p">)</span> <span class="p">.</span><span class="nf">on</span><span class="p">(</span> <span class="n">action_grant</span><span class="p">[</span><span class="ss">:grant_id</span><span class="p">].</span><span class="nf">eq</span>  <span class="n">grant</span><span class="p">[</span><span class="ss">:id</span><span class="p">]</span>  <span class="p">)</span>
+
+        <span class="c1"># fetch a grant that matches the requested action</span>
+        <span class="n">query</span><span class="p">.</span><span class="nf">where</span><span class="p">(</span> <span class="n">action</span><span class="p">[</span><span class="ss">:name</span><span class="p">].</span><span class="nf">in</span> <span class="n">action_list</span><span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="o">&amp;</span><span class="ss">:to_s</span><span class="p">)</span> <span class="p">)</span>
+
+        <span class="c1"># only for the needed grantee</span>
+        <span class="n">query</span><span class="p">.</span><span class="nf">where</span><span class="p">(</span> <span class="n">grantee_query</span> <span class="n">resolve</span> <span class="n">grantee</span> <span class="p">)</span>
+
+        <span class="c1"># and only for the needed resource</span>
+        <span class="n">query</span><span class="p">.</span><span class="nf">where</span><span class="p">(</span> <span class="n">resource_query</span> <span class="n">resolve</span> <span class="n">resource</span> <span class="p">)</span>
+
+        <span class="n">grants</span>  <span class="o">=</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span><span class="p">.</span><span class="nf">connection</span><span class="p">.</span><span class="nf">execute</span> <span class="n">query</span><span class="p">.</span><span class="nf">dup</span><span class="p">.</span><span class="nf">where</span><span class="p">(</span><span class="n">grant</span><span class="p">[</span><span class="ss">:revocation</span><span class="p">].</span><span class="nf">eq</span> <span class="kp">false</span><span class="p">).</span><span class="nf">to_sql</span>
+        <span class="n">revokes</span> <span class="o">=</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span><span class="p">.</span><span class="nf">connection</span><span class="p">.</span><span class="nf">execute</span> <span class="n">query</span><span class="p">.</span><span class="nf">dup</span><span class="p">.</span><span class="nf">where</span><span class="p">(</span><span class="n">grant</span><span class="p">[</span><span class="ss">:revocation</span><span class="p">].</span><span class="nf">eq</span> <span class="kp">true</span> <span class="p">).</span><span class="nf">to_sql</span>
+
+        <span class="k">return</span> <span class="kp">false</span> <span class="k">unless</span> <span class="n">grants</span><span class="p">.</span><span class="nf">to_a</span><span class="p">.</span><span class="nf">any?</span>
+        <span class="k">return</span> <span class="n">revokes</span><span class="p">.</span><span class="nf">to_a</span><span class="p">.</span><span class="nf">empty?</span>
+      <span class="k">end</span>
+
+      <span class="kp">private</span>
+
+      <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">resolve</span> <span class="n">obj</span>
+        <span class="no">Authent</span><span class="o">::</span><span class="no">GrantResolver</span><span class="p">.</span><span class="nf">search</span> <span class="n">obj</span>
+      <span class="k">end</span>
+
+      <span class="c1"># Properly build an AREL WHERE() clause for a collection of polymorphic objects.</span>
+      <span class="c1">#</span>
+      <span class="c1"># ActiveRecord doesn't do a good job of resolving polymorphic relationships</span>
+      <span class="c1"># across IN() queries. Notice the incorrect logic around grantee_type and the</span>
+      <span class="c1"># oddity of the numbers in the IN() clause:</span>
+      <span class="c1">#</span>
+      <span class="c1">#    irb(main):134:0&gt; Grant.where grantee: [User.first, User.second, Organization.first]</span>
+      <span class="c1">#    Grant Load (0.4ms)  SELECT "grants".* FROM "grants"  WHERE "grants"."grantee_type" = 'User'</span>
+      <span class="c1">#                        AND "grants"."grantee_id" IN (1, 2, 1)</span>
+      <span class="c1">#</span>
+      <span class="c1"># Instead, we need to build something like this:</span>
+      <span class="c1">#</span>
+      <span class="c1">#    SELECT "grants".* FROM "grants"</span>
+      <span class="c1">#    WHERE (</span>
+      <span class="c1">#          (grantee_id IN(1,2) AND grantee_type = 'User')</span>
+      <span class="c1">#      OR (grantee_id IN(1) AND grantee_type = 'Organization')</span>
+      <span class="c1">#    )</span>
+      <span class="c1">#</span>
+      <span class="c1"># @param id_param [Symbol] the name of the _id field the clause is matching against</span>
+      <span class="c1"># @param type_param [Symbol] the name of the _type field the clause is matching against</span>
+      <span class="c1"># @param objects [Array&lt;#id,#class&gt;] list of objects to the where clause</span>
+      <span class="c1"># @return [ActiveRecord::Relation] a relation populated with the where clause</span>
+      <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">build_query</span> <span class="n">id_param</span><span class="p">,</span> <span class="n">type_param</span><span class="p">,</span> <span class="n">objects</span>
+        <span class="n">arel</span> <span class="o">=</span> <span class="n">arel_table</span>
+        <span class="n">query_clauses</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># get a list of the different classes we need to build clauses for</span>
+        <span class="n">classes</span> <span class="o">=</span> <span class="n">objects</span><span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="o">&amp;</span><span class="ss">:class</span><span class="p">).</span><span class="nf">map</span><span class="p">(</span><span class="o">&amp;</span><span class="ss">:base_class</span><span class="p">).</span><span class="nf">uniq</span>
+
+        <span class="c1"># strip out classes that don't matter to the database</span>
+        <span class="n">classes</span> <span class="o">-=</span> <span class="n">filtered_classes</span>
+
+        <span class="c1"># perform a pivot type operation on the list of objects, grouping by class, collecting IDs</span>
+        <span class="n">classes</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">klass</span><span class="o">|</span>
+          <span class="n">ids</span> <span class="o">=</span> <span class="n">objects</span><span class="p">.</span><span class="nf">select</span> <span class="p">{</span><span class="o">|</span><span class="n">o</span><span class="o">|</span> <span class="n">o</span><span class="p">.</span><span class="nf">class</span><span class="p">.</span><span class="nf">base_class</span> <span class="o">==</span> <span class="n">klass</span><span class="p">}</span>
+                       <span class="p">.</span><span class="nf">map</span> <span class="o">&amp;</span><span class="ss">:id</span>
+
+          <span class="c1"># build a grouped match, which will look something like:</span>
+          <span class="c1">#     (field_id IN(n, n, n, n) AND field_type = 'Klass')</span>
+          <span class="n">query_clauses</span><span class="p">.</span><span class="nf">push</span> <span class="no">Arel</span><span class="o">::</span><span class="no">Nodes</span><span class="o">::</span><span class="no">Grouping</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span>
+            <span class="n">arel</span><span class="p">[</span><span class="n">id_param</span><span class="p">].</span><span class="nf">in</span><span class="p">(</span> <span class="n">ids</span> <span class="p">).</span><span class="nf">and</span><span class="p">(</span> <span class="n">arel</span><span class="p">[</span><span class="n">type_param</span><span class="p">].</span><span class="nf">eq</span><span class="p">(</span> <span class="n">klass</span> <span class="p">)</span> <span class="p">)</span>
+          <span class="p">)</span>
+        <span class="k">end</span>
+
+        <span class="c1"># builds out something akin to:</span>
+        <span class="c1">#     (match OR (match OR (match OR match)))</span>
+        <span class="c1"># which is logically equivalent to:</span>
+        <span class="c1">#     (match OR match OR match OR match)</span>
+        <span class="n">query_clauses</span><span class="p">.</span><span class="nf">inject</span><span class="p">(</span><span class="n">query_clauses</span><span class="p">.</span><span class="nf">pop</span><span class="p">){</span> <span class="o">|</span><span class="n">clause</span><span class="p">,</span> <span class="n">query</span><span class="o">|</span> <span class="n">query</span><span class="p">.</span><span class="nf">or</span><span class="p">(</span> <span class="n">clause</span> <span class="p">)</span> <span class="p">}</span>
+      <span class="k">end</span>
+
+      <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">grantee_query</span> <span class="n">objects</span>
+        <span class="n">id_param</span>   <span class="o">=</span> <span class="s1">'grantee_id'</span><span class="p">.</span><span class="nf">to_sym</span>
+        <span class="n">type_param</span> <span class="o">=</span> <span class="s1">'grantee_type'</span><span class="p">.</span><span class="nf">to_sym</span>
+        <span class="n">build_query</span> <span class="n">id_param</span><span class="p">,</span> <span class="n">type_param</span><span class="p">,</span> <span class="n">objects</span>
+      <span class="k">end</span>
+
+      <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">resource_query</span> <span class="n">objects</span>
+        <span class="n">id_param</span>   <span class="o">=</span> <span class="s1">'resource_id'</span><span class="p">.</span><span class="nf">to_sym</span>
+        <span class="n">type_param</span> <span class="o">=</span> <span class="s1">'resource_type'</span><span class="p">.</span><span class="nf">to_sym</span>
+        <span class="n">build_query</span> <span class="n">id_param</span><span class="p">,</span> <span class="n">type_param</span><span class="p">,</span> <span class="n">objects</span>
+      <span class="k">end</span>
+
+    <span class="k">end</span>
+  <span class="w">
+</span></pre></td></tr></tbody></table></code></pre></figure>
+
+  <h4>Grant Resolver:</h4>
+  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table style="border-spacing: 0"><tbody><tr><td class="gutter gl" style="text-align: right"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+97
+98
+99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
+158</pre></td><td class="code"><pre>    <span class="k">module</span> <span class="nn">Authent</span>
+      <span class="c1"># Polymorphic enabled relational traversal engine.</span>
+      <span class="k">class</span> <span class="nc">GrantResolver</span>
+        <span class="k">def</span> <span class="nf">initialize</span>
+          <span class="vi">@unresolved</span> <span class="o">=</span> <span class="p">[]</span>
+          <span class="vi">@resolutions</span> <span class="o">=</span> <span class="p">[]</span>
+          <span class="vi">@cache</span> <span class="o">=</span> <span class="p">{}</span>
+          <span class="vi">@cached_reflections</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">end</span>
+
+        <span class="c1"># Define how we traverse up an object tree for a given object.</span>
+        <span class="c1">#</span>
+        <span class="c1"># @note Be careful to define these in an upward or horizontal direction with</span>
+        <span class="c1">#   respect to the inheritance tree. Defining downward enumerators will</span>
+        <span class="c1">#   result in an infinite loop.</span>
+        <span class="c1">#</span>
+        <span class="c1"># @return [Hash&lt;Symbol, Array&lt;Symbol&gt;&gt;]</span>
+        <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">resolutions</span>
+          <span class="c1"># nb - Defined to match the mocks above.</span>
+          <span class="p">{</span>
+            <span class="ss">:User</span>        <span class="o">=&gt;</span> <span class="p">[</span><span class="ss">:memberships</span><span class="p">,</span> <span class="ss">:everyone</span><span class="p">],</span>
+            <span class="ss">:UserGroup</span>   <span class="o">=&gt;</span> <span class="p">[</span><span class="ss">:group</span><span class="p">]</span>
+          <span class="p">}</span>
+        <span class="k">end</span>
+
+        <span class="c1"># (see #search)</span>
+        <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">search</span> <span class="n">obj</span>
+          <span class="kp">new</span><span class="p">.</span><span class="nf">search</span> <span class="n">obj</span>
+        <span class="k">end</span>
+
+        <span class="c1"># Perform a lookup on an object, iterating until all resolutions are complete.</span>
+        <span class="c1"># @param obj the object to resolve.</span>
+        <span class="c1"># @return [Array] a list of objects that resolved out of obj.</span>
+        <span class="k">def</span> <span class="nf">search</span> <span class="n">obj</span> <span class="o">=</span> <span class="kp">nil</span>
+          <span class="vi">@unresolved</span><span class="p">.</span><span class="nf">push</span> <span class="n">obj</span>
+          <span class="k">while</span> <span class="vi">@unresolved</span><span class="p">.</span><span class="nf">any?</span> <span class="k">do</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="vi">@unresolved</span><span class="p">.</span><span class="nf">shift</span>
+
+            <span class="k">next</span> <span class="k">if</span> <span class="n">obj</span><span class="p">.</span><span class="nf">nil?</span>
+            <span class="k">next</span> <span class="k">if</span> <span class="n">resolved?</span> <span class="n">obj</span>
+
+            <span class="c1"># Open question: Should we sort by type and do a group get in here somewhere?</span>
+
+            <span class="k">if</span> <span class="n">obj</span><span class="p">.</span><span class="nf">kind_of?</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span>
+              <span class="n">mark_resolved</span> <span class="n">obj</span>
+              <span class="n">resolve_later</span> <span class="n">resolve</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+
+            <span class="k">elsif</span> <span class="n">obj</span><span class="p">.</span><span class="nf">kind_of?</span> <span class="no">Array</span>
+              <span class="k">next</span> <span class="k">unless</span> <span class="n">obj</span><span class="p">.</span><span class="nf">any?</span>
+              <span class="n">resolve_later</span> <span class="o">*</span><span class="n">obj</span>
+
+            <span class="k">elsif</span> <span class="n">obj</span><span class="p">.</span><span class="nf">kind_of?</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">AssociationRelation</span>
+              <span class="n">resolve_later</span> <span class="n">resolve_relation</span> <span class="n">obj</span>
+
+            <span class="k">elsif</span> <span class="n">obj</span><span class="p">.</span><span class="nf">kind_of?</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Associations</span><span class="o">::</span><span class="no">CollectionProxy</span>
+              <span class="k">next</span> <span class="k">unless</span> <span class="n">obj</span><span class="p">.</span><span class="nf">any?</span>
+              <span class="n">resolve_later</span> <span class="n">resolve_proxy</span> <span class="n">obj</span>
+
+            <span class="k">else</span>
+              <span class="n">mark_resolved</span> <span class="n">obj</span>
+            <span class="k">end</span>
+          <span class="k">end</span>
+
+          <span class="vi">@resolutions</span>
+        <span class="k">end</span>
+
+        <span class="kp">protected</span>
+
+        <span class="c1"># Resolve one object to associated objecst by traversing the resolution</span>
+        <span class="c1">#   map defined in #resolutions.</span>
+        <span class="c1"># @param [ActiveRecord::Base] obj the object to resolve.</span>
+        <span class="c1"># @return [Array] a list of resolved objects.</span>
+        <span class="k">def</span> <span class="nf">resolve</span> <span class="n">obj</span>
+          <span class="n">klass</span> <span class="o">=</span> <span class="n">classify</span> <span class="n">obj</span>
+          <span class="k">return</span> <span class="kp">nil</span> <span class="k">unless</span> <span class="nb">self</span><span class="p">.</span><span class="nf">class</span><span class="p">.</span><span class="nf">resolutions</span><span class="p">[</span><span class="n">klass</span><span class="p">]</span>
+          <span class="nb">self</span><span class="p">.</span><span class="nf">class</span><span class="p">.</span><span class="nf">resolutions</span><span class="p">[</span><span class="n">klass</span><span class="p">].</span><span class="nf">map</span> <span class="p">{</span><span class="o">|</span><span class="n">meth</span><span class="o">|</span> <span class="n">obj</span><span class="p">.</span><span class="nf">send</span><span class="p">(</span><span class="n">meth</span><span class="p">)}</span>
+        <span class="k">end</span>
+
+        <span class="c1"># Resolve a CollectionProxy object. Attempts to query the database in bulk</span>
+        <span class="c1">#   for related objects using ActiveRecord::Associations::CollectionProxy#includes,</span>
+        <span class="c1">#   folding O(n) queries down to O(1).</span>
+        <span class="c1"># @param [ActiveRecord::Associations::CollectionProxy] proxy the proxy object to resolve.</span>
+        <span class="c1"># @return [ActiveRecord::AssociationRelation] a resolved collection proxy.</span>
+        <span class="k">def</span> <span class="nf">resolve_proxy</span> <span class="n">proxy</span>
+          <span class="n">klass</span> <span class="o">=</span> <span class="n">classify</span> <span class="n">proxy</span><span class="p">.</span><span class="nf">first</span>
+          <span class="n">associations</span> <span class="o">=</span> <span class="n">reflect_associations</span> <span class="n">proxy</span><span class="p">.</span><span class="nf">first</span>
+          <span class="k">return</span> <span class="n">proxy</span><span class="p">.</span><span class="nf">to_a</span> <span class="k">unless</span> <span class="nb">self</span><span class="p">.</span><span class="nf">class</span><span class="p">.</span><span class="nf">resolutions</span><span class="p">[</span><span class="n">klass</span><span class="p">]</span>
+          <span class="n">chain</span> <span class="o">=</span> <span class="n">proxy</span>
+          <span class="nb">self</span><span class="p">.</span><span class="nf">class</span><span class="p">.</span><span class="nf">resolutions</span><span class="p">[</span><span class="n">klass</span><span class="p">].</span><span class="nf">map</span> <span class="k">do</span> <span class="o">|</span><span class="n">meth</span><span class="o">|</span>
+            <span class="k">if</span> <span class="n">associations</span><span class="p">.</span><span class="nf">include?</span> <span class="n">meth</span>
+              <span class="n">chain</span> <span class="o">=</span> <span class="n">chain</span><span class="p">.</span><span class="nf">includes</span><span class="p">(</span><span class="n">meth</span><span class="p">)</span>
+            <span class="k">else</span>
+              <span class="nb">puts</span> <span class="s2">"ohai tried to call .includes(</span><span class="si">#{</span><span class="n">meth</span><span class="si">}</span><span class="s2">) on a </span><span class="si">#{</span><span class="n">proxy</span><span class="p">.</span><span class="nf">first</span><span class="p">.</span><span class="nf">class</span><span class="si">}</span><span class="s2"> but it doesn't seem to want it"</span>
+            <span class="k">end</span>
+          <span class="k">end</span>
+          <span class="n">chain</span>
+        <span class="k">end</span>
+
+        <span class="c1"># Resolve an AssociationRelation object by iterating the relation and resolving</span>
+        <span class="c1">#   containing objects manually.</span>
+        <span class="c1"># @param [ActiveRecord::AssociationRelation] relation the relation to be resolved.</span>
+        <span class="c1"># @return [Array&lt;ActiveRecord::Base&gt;] list of record objects resolved from the relation.</span>
+        <span class="k">def</span> <span class="nf">resolve_relation</span> <span class="n">relation</span>
+          <span class="n">relation</span><span class="p">.</span><span class="nf">map</span> <span class="k">do</span> <span class="o">|</span><span class="n">related</span><span class="o">|</span>
+            <span class="n">resolve</span> <span class="n">related</span>
+          <span class="k">end</span>
+        <span class="k">end</span>
+
+        <span class="c1"># Check to see if an object has been resolved.</span>
+        <span class="c1"># @param [ActiveRecord::Base] obj object that colud be resolved.</span>
+        <span class="c1"># @return [Boolean] true if the object has been resolved already.</span>
+        <span class="k">def</span> <span class="nf">resolved?</span> <span class="n">obj</span>
+          <span class="k">return</span> <span class="kp">false</span> <span class="k">unless</span> <span class="n">obj</span><span class="p">.</span><span class="nf">kind_of?</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span>
+          <span class="n">klass</span> <span class="o">=</span> <span class="n">classify</span> <span class="n">obj</span>
+          <span class="vi">@cache</span><span class="p">[</span><span class="n">klass</span><span class="p">]</span> <span class="o">&amp;&amp;</span> <span class="vi">@cache</span><span class="p">[</span><span class="n">klass</span><span class="p">][</span><span class="n">obj</span><span class="p">.</span><span class="nf">id</span><span class="p">]</span>
+        <span class="k">end</span>
+
+        <span class="c1"># Mark a given object as resolved. Stashes a reference in a lookup table</span>
+        <span class="c1">#   and in the list of resolutions.</span>
+        <span class="c1"># @param obj object that has been resolved.</span>
+        <span class="c1"># @return void.</span>
+        <span class="k">def</span> <span class="nf">mark_resolved</span> <span class="n">obj</span>
+          <span class="n">klass</span> <span class="o">=</span> <span class="n">classify</span> <span class="n">obj</span>
+          <span class="vi">@cache</span><span class="p">[</span><span class="n">klass</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span> <span class="k">unless</span> <span class="vi">@cache</span><span class="p">[</span><span class="n">klass</span><span class="p">]</span>
+          <span class="vi">@cache</span><span class="p">[</span><span class="n">klass</span><span class="p">][</span><span class="n">obj</span><span class="p">.</span><span class="nf">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">obj</span>
+          <span class="vi">@resolutions</span> <span class="o">&lt;&lt;</span> <span class="n">obj</span>
+
+          <span class="kp">nil</span>
+        <span class="k">end</span>
+
+        <span class="c1"># Enqueue objects to be resolved at the next iteration.</span>
+        <span class="c1"># @param objs a list of objects to enqueue.</span>
+        <span class="c1"># @return void.</span>
+        <span class="k">def</span> <span class="nf">resolve_later</span> <span class="o">*</span><span class="n">objs</span>
+          <span class="n">objs</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">obj</span><span class="o">|</span>
+            <span class="vi">@unresolved</span><span class="p">.</span><span class="nf">push</span> <span class="n">obj</span> <span class="k">unless</span> <span class="n">resolved?</span> <span class="n">obj</span>
+          <span class="k">end</span>
+
+          <span class="kp">nil</span>
+        <span class="k">end</span>
+
+        <span class="c1"># Determine the class symbol of a given object.</span>
+        <span class="c1"># @param obj any object.</span>
+        <span class="c1"># @return [Symbol] a symbol of the name of the class.</span>
+        <span class="k">def</span> <span class="nf">classify</span> <span class="n">obj</span>
+          <span class="n">obj</span><span class="p">.</span><span class="nf">class</span><span class="p">.</span><span class="nf">base_class</span><span class="p">.</span><span class="nf">to_s</span><span class="p">.</span><span class="nf">to_sym</span>
+        <span class="k">end</span>
+
+        <span class="c1"># Perform a reflective lookup on a class to pull in all associations.</span>
+        <span class="c1">#   Caches reflections by class name.</span>
+        <span class="c1"># @param obj an instance of the class needing association lookup.</span>
+        <span class="c1"># @return [Array&lt;Symbol&gt;] a list of association names on the class.</span>
+        <span class="k">def</span> <span class="nf">reflect_associations</span> <span class="n">obj</span>
+          <span class="vi">@cached_reflections</span><span class="p">[</span><span class="n">classify</span> <span class="n">obj</span><span class="p">]</span> <span class="o">||=</span> <span class="n">obj</span><span class="p">.</span><span class="nf">class</span><span class="p">.</span><span class="nf">reflect_on_all_associations</span><span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="o">&amp;</span><span class="ss">:name</span><span class="p">)</span>
+        <span class="k">end</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+  <span class="w">
+</span></pre></td></tr></tbody></table></code></pre></figure>
+</div>
+
+      </div>
+    </div>
+    <hr>
+
+<footer>
+  <div id="meta" class="section">
+    <h5>Meta</h5>
+    <p class="small indent">This resume and related files are available as a public git reposotory at <a href="https://bitbucket.org/robacarp/resume">git@bitbucket.org:robacarp/resume.git</a></p>
+  </div>
+</footer>
+
+  </body>
+</html>
