@@ -1,0 +1,453 @@
+---
+layout: default
+---
+
+<div class="section">
+  <h3>Generic Authentication Backend</h3>
+  <p class="indent"><strong>Written:</strong> September, 2015</p>
+  <p class="indent"><strong>Abstract:</strong>
+    Large rails applications often have a diaspora of methods used to determine if a user should be allowed to
+    perform some action on the system, resulting in a difficult to maintain and debug authorization system.
+  </p>
+  <p class="indent">
+    These classes represent my attempt to provide a central system for authorization with the following requirements:
+  </p>
+  <ul>
+    <li>Public access can be explictly granted or revoked.</li>
+    <li>Support polymorphic relationships throughout.</li>
+    <li>Easily taught to traverse relationships between models efficiently, querying at O(1) where possible.</li>
+    <li>Allows for granting access via user collection mechanisms such as ownership data, or membership data.</li>
+    <li>Support granting for CRUD actions as well as unique per-object actions.</li>
+  </ul>
+  <p class="indent">
+    <strong>Compiling Status:</strong> valid.
+  </p>
+  <p class="indent">
+    <strong>Repository:</strong> Private, email for details.
+  </p>
+
+  <h4>Example usage in a Rails ActiveModel:</h4>
+  {% highlight ruby linenos %}
+    class Group < ActiveRecord::Base
+      belongs_to :owner, class_name: User, required: true
+      has_many :memberships, class_name: UserGroup, dependent: :destroy
+      has_many :users, through: :memberships
+
+      include Accessible
+    end
+
+    class User < ActiveRecord::Base
+      has_many :memberships, class_name: UserGroup, dependent: :destroy
+      has_many :groups
+
+      def everyone
+        Everyone.new
+      end
+    end
+  {% endhighlight %}
+
+  <h4>Accessible concern:</h4>
+  {% highlight ruby linenos %}
+    module Accessible
+      extend ActiveSupport::Concern
+
+      included do |into|
+        has_many :grants, as: :resource
+      end
+
+      def grant!(grantee, to:)
+        Grant.grant! resource: self, action: to, grantee: grantee
+      end
+
+      def revoke!(grantee, to:)
+        Grant.grant! resource: self, action: to, grantee: grantee, revocation: true
+      end
+    end
+  {% endhighlight %}
+
+  <h4>Example usage for awarding and referencing permissions</h4>
+  {% highlight ruby linenos %}
+    class GroupsController < ApplicationController
+      before_action :fetch_group, only: :show
+
+      def create
+        @group = Group.create(owner: current_user)
+        current_user.memberships.create membershippable: @group
+        @group.grant! @owner, to: [:read, :update, :delete]
+        @group.grant! @group, to: :read
+      end
+
+      def show
+        unless Grant.can? current_user, :read, @group
+          render nothing: true, status: :unauthorized and return
+        end
+      end
+
+      private def fetch_group
+        @group = Group.find_by id: params[:id]
+      end
+    end
+  {% endhighlight %}
+
+  <h4>Action &amp; Grant Models</h4>
+  {% highlight ruby linenos %}
+    class Action < ActiveRecord::Base
+      validates :name, presence: true, uniqueness: true
+
+      def self.named name
+        where( name: name.downcase ).first_or_create
+      end
+    end
+
+    #############################################################
+
+    class Grant < ActiveRecord::Base
+      has_and_belongs_to_many :actions
+      validates :actions, presence: true
+
+      belongs_to :resource, polymorphic: true, required: true
+      belongs_to :grantee,  polymorphic: true, required: true
+      belongs_to :grantor, class_name: 'User'
+
+      def permissions
+        actions.map &:name
+      end
+
+      def permissions= action
+        actions = Array(action).dup.compact
+        actions.map! { |name| Action.named name }
+        self.actions = actions
+      end
+
+      # Provide a single entry point for creating grants
+      #
+      # @param resource [ActiveRecord] the resource that access will be granted or restricted to
+      # @param action [Array<Symbol>]  the access level that is being granted or restricted
+      # @param grantee [ActiveRecord] the user that is being awarded the permissions
+      # @param revocation [Boolean] if false, the grant created will be a revocation
+      def self.grant!(resource: nil, action: nil, grantee: nil, revocation: false)
+        if grantee.kind_of? Class
+          grantee = grantee.new
+        end
+
+        grant = Grant.new
+        grant.resource    = resource
+        grant.grantee     = grantee
+        grant.revocation  = revocation
+
+        grant.permissions = action
+
+        grant.save!
+
+        grant
+      end
+
+      # Destroy grants relating to a resource and grantee
+      #
+      # @param resource [ActiveRecord] the resource to remove all grants from
+      # @param action [Array<Symbol>]  the action to remove all grants from. Default: all actions.
+      # @param grantee [ActiveRecord]  the user to remove permissions from. Default: all users.
+      def self.ungrant!(resource:, action: nil, grantee: nil)
+        fail 'No resource provided' unless resource
+
+        if grantee.kind_of? Class
+          grantee = grantee.new
+        end
+
+        context = Grant.where(resource: resource)
+
+        if grantee
+          context = context.where(grantee: grantee)
+        end
+
+        if action
+          context = context.where(actions: Array(action))
+        end
+
+        context.delete_all
+      end
+
+      # A list of classes that shouldn't be turned into subqueries.
+      #
+      # @return [Array<Class>] list of classes
+      def self.filtered_classes
+        [ Membership ]
+      end
+
+      # Determine if a grantee can perform an action on a resource.
+      #
+      # @note When a user has both a grant and a revocation, the revocation takes precedence.
+      #
+      # @example
+      #   Grant.can? a_user, :read, some_content
+      #   Grant.can? @user, :edit, @dashboard
+      #
+      # @param grantee [#id, #class]
+      # @param resource [#id, #class]
+      # @param action [Symbol]
+      # @return [Boolean]
+      def self.can? grantee, action_list, resource
+        if grantee.kind_of? Class
+          grantee = grantee.new
+        end
+
+        action_list = Array(action_list)
+
+        action = Action.arel_table
+        grant = Grant.arel_table
+        action_grant = ActionsGrants.arel_table
+
+        # Query from actions_grants, but pull in actions and grants
+        query = action_grant.project(Arel.star)
+                            .join( action ).on( action_grant[:action_id].eq action[:id] )
+                            .join( grant ) .on( action_grant[:grant_id].eq  grant[:id]  )
+
+        # fetch a grant that matches the requested action
+        query.where( action[:name].in action_list.map(&:to_s) )
+
+        # only for the needed grantee
+        query.where( grantee_query resolve grantee )
+
+        # and only for the needed resource
+        query.where( resource_query resolve resource )
+
+        grants  = ActiveRecord::Base.connection.execute query.dup.where(grant[:revocation].eq false).to_sql
+        revokes = ActiveRecord::Base.connection.execute query.dup.where(grant[:revocation].eq true ).to_sql
+
+        return false unless grants.to_a.any?
+        return revokes.to_a.empty?
+      end
+
+      private
+
+      def self.resolve obj
+        Authent::GrantResolver.search obj
+      end
+
+      # Properly build an AREL WHERE() clause for a collection of polymorphic objects.
+      #
+      # ActiveRecord doesn't do a good job of resolving polymorphic relationships
+      # across IN() queries. Notice the incorrect logic around grantee_type and the
+      # oddity of the numbers in the IN() clause:
+      #
+      #    irb(main):134:0> Grant.where grantee: [User.first, User.second, Organization.first]
+      #    Grant Load (0.4ms)  SELECT "grants".* FROM "grants"  WHERE "grants"."grantee_type" = 'User'
+      #                        AND "grants"."grantee_id" IN (1, 2, 1)
+      #
+      # Instead, we need to build something like this:
+      #
+      #    SELECT "grants".* FROM "grants"
+      #    WHERE (
+      #          (grantee_id IN(1,2) AND grantee_type = 'User')
+      #      OR (grantee_id IN(1) AND grantee_type = 'Organization')
+      #    )
+      #
+      # @param id_param [Symbol] the name of the _id field the clause is matching against
+      # @param type_param [Symbol] the name of the _type field the clause is matching against
+      # @param objects [Array<#id,#class>] list of objects to the where clause
+      # @return [ActiveRecord::Relation] a relation populated with the where clause
+      def self.build_query id_param, type_param, objects
+        arel = arel_table
+        query_clauses = []
+
+        # get a list of the different classes we need to build clauses for
+        classes = objects.map(&:class).map(&:base_class).uniq
+
+        # strip out classes that don't matter to the database
+        classes -= filtered_classes
+
+        # perform a pivot type operation on the list of objects, grouping by class, collecting IDs
+        classes.each do |klass|
+          ids = objects.select {|o| o.class.base_class == klass}
+                       .map &:id
+
+          # build a grouped match, which will look something like:
+          #     (field_id IN(n, n, n, n) AND field_type = 'Klass')
+          query_clauses.push Arel::Nodes::Grouping.new(
+            arel[id_param].in( ids ).and( arel[type_param].eq( klass ) )
+          )
+        end
+
+        # builds out something akin to:
+        #     (match OR (match OR (match OR match)))
+        # which is logically equivalent to:
+        #     (match OR match OR match OR match)
+        query_clauses.inject(query_clauses.pop){ |clause, query| query.or( clause ) }
+      end
+
+      def self.grantee_query objects
+        id_param   = 'grantee_id'.to_sym
+        type_param = 'grantee_type'.to_sym
+        build_query id_param, type_param, objects
+      end
+
+      def self.resource_query objects
+        id_param   = 'resource_id'.to_sym
+        type_param = 'resource_type'.to_sym
+        build_query id_param, type_param, objects
+      end
+
+    end
+  {% endhighlight %}
+
+  <h4>Grant Resolver:</h4>
+  {% highlight ruby linenos %}
+    module Authent
+      # Polymorphic enabled relational traversal engine.
+      class GrantResolver
+        def initialize
+          @unresolved = []
+          @resolutions = []
+          @cache = {}
+          @cached_reflections = {}
+        end
+
+        # Define how we traverse up an object tree for a given object.
+        #
+        # @note Be careful to define these in an upward or horizontal direction with
+        #   respect to the inheritance tree. Defining downward enumerators will
+        #   result in an infinite loop.
+        #
+        # @return [Hash<Symbol, Array<Symbol>>]
+        def self.resolutions
+          # nb - Defined to match the mocks above.
+          {
+            :User        => [:memberships, :everyone],
+            :UserGroup   => [:group]
+          }
+        end
+
+        # (see #search)
+        def self.search obj
+          new.search obj
+        end
+
+        # Perform a lookup on an object, iterating until all resolutions are complete.
+        # @param obj the object to resolve.
+        # @return [Array] a list of objects that resolved out of obj.
+        def search obj = nil
+          @unresolved.push obj
+          while @unresolved.any? do
+            obj = @unresolved.shift
+
+            next if obj.nil?
+            next if resolved? obj
+
+            # Open question: Should we sort by type and do a group get in here somewhere?
+
+            if obj.kind_of? ActiveRecord::Base
+              mark_resolved obj
+              resolve_later resolve(obj)
+
+            elsif obj.kind_of? Array
+              next unless obj.any?
+              resolve_later *obj
+
+            elsif obj.kind_of? ActiveRecord::AssociationRelation
+              resolve_later resolve_relation obj
+
+            elsif obj.kind_of? ActiveRecord::Associations::CollectionProxy
+              next unless obj.any?
+              resolve_later resolve_proxy obj
+
+            else
+              mark_resolved obj
+            end
+          end
+
+          @resolutions
+        end
+
+        protected
+
+        # Resolve one object to associated objecst by traversing the resolution
+        #   map defined in #resolutions.
+        # @param [ActiveRecord::Base] obj the object to resolve.
+        # @return [Array] a list of resolved objects.
+        def resolve obj
+          klass = classify obj
+          return nil unless self.class.resolutions[klass]
+          self.class.resolutions[klass].map {|meth| obj.send(meth)}
+        end
+
+        # Resolve a CollectionProxy object. Attempts to query the database in bulk
+        #   for related objects using ActiveRecord::Associations::CollectionProxy#includes,
+        #   folding O(n) queries down to O(1).
+        # @param [ActiveRecord::Associations::CollectionProxy] proxy the proxy object to resolve.
+        # @return [ActiveRecord::AssociationRelation] a resolved collection proxy.
+        def resolve_proxy proxy
+          klass = classify proxy.first
+          associations = reflect_associations proxy.first
+          return proxy.to_a unless self.class.resolutions[klass]
+          chain = proxy
+          self.class.resolutions[klass].map do |meth|
+            if associations.include? meth
+              chain = chain.includes(meth)
+            else
+              puts "ohai tried to call .includes(#{meth}) on a #{proxy.first.class} but it doesn't seem to want it"
+            end
+          end
+          chain
+        end
+
+        # Resolve an AssociationRelation object by iterating the relation and resolving
+        #   containing objects manually.
+        # @param [ActiveRecord::AssociationRelation] relation the relation to be resolved.
+        # @return [Array<ActiveRecord::Base>] list of record objects resolved from the relation.
+        def resolve_relation relation
+          relation.map do |related|
+            resolve related
+          end
+        end
+
+        # Check to see if an object has been resolved.
+        # @param [ActiveRecord::Base] obj object that colud be resolved.
+        # @return [Boolean] true if the object has been resolved already.
+        def resolved? obj
+          return false unless obj.kind_of? ActiveRecord::Base
+          klass = classify obj
+          @cache[klass] && @cache[klass][obj.id]
+        end
+
+        # Mark a given object as resolved. Stashes a reference in a lookup table
+        #   and in the list of resolutions.
+        # @param obj object that has been resolved.
+        # @return void.
+        def mark_resolved obj
+          klass = classify obj
+          @cache[klass] = {} unless @cache[klass]
+          @cache[klass][obj.id] = obj
+          @resolutions << obj
+
+          nil
+        end
+
+        # Enqueue objects to be resolved at the next iteration.
+        # @param objs a list of objects to enqueue.
+        # @return void.
+        def resolve_later *objs
+          objs.each do |obj|
+            @unresolved.push obj unless resolved? obj
+          end
+
+          nil
+        end
+
+        # Determine the class symbol of a given object.
+        # @param obj any object.
+        # @return [Symbol] a symbol of the name of the class.
+        def classify obj
+          obj.class.base_class.to_s.to_sym
+        end
+
+        # Perform a reflective lookup on a class to pull in all associations.
+        #   Caches reflections by class name.
+        # @param obj an instance of the class needing association lookup.
+        # @return [Array<Symbol>] a list of association names on the class.
+        def reflect_associations obj
+          @cached_reflections[classify obj] ||= obj.class.reflect_on_all_associations.map(&:name)
+        end
+      end
+    end
+  {% endhighlight %}
+</div>
