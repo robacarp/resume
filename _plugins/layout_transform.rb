@@ -4,7 +4,11 @@ module Jekyll
 
     def initialize *args
       plain_init *args
-      self.content = transform
+      self.content = _renderer.convert content
+    end
+
+    def extname
+      @ext
     end
   end
 end
