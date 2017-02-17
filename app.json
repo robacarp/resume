@@ -1,0 +1,9 @@
+{
+  "name": "Resume",
+  "description": "",
+  "scripts": {
+    "dokku": {
+      "predeploy": "jekyll build"
+    }
+  }
+}
