@@ -10,15 +10,12 @@
   <link rel="stylesheet" href="/css/syntax-highlighting.css" type="text/css">
 
   <meta charset="utf-8">
-  
-  <meta name="robots" content="noindex" />
-  
 </head>
 
   <body>
     <header>
   <h1 class="pull-left">Robert Carpenter</h1>
-  <h5 class="pull-right">robert@robacarp.com &mdash; Boulder, Colorado</h2>
+  <h5 class="pull-right">Boulder, Colorado</h5>
 </header>
 <hr>
 
@@ -49,7 +46,7 @@
   </p>
 
   <h4>Example usage in a Rails ActiveModel:</h4>
-  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table style="border-spacing: 0"><tbody><tr><td class="gutter gl" style="text-align: right"><pre class="lineno">1
+  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
 2
 3
 4
@@ -65,7 +62,8 @@
 14
 15
 16
-17</pre></td><td class="code"><pre>    <span class="k">class</span> <span class="nc">Group</span> <span class="o">&lt;</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span>
+17
+</pre></td><td class="code"><pre>    <span class="k">class</span> <span class="nc">Group</span> <span class="o">&lt;</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span>
       <span class="n">belongs_to</span> <span class="ss">:owner</span><span class="p">,</span> <span class="ss">class_name: </span><span class="no">User</span><span class="p">,</span> <span class="ss">required: </span><span class="kp">true</span>
       <span class="n">has_many</span> <span class="ss">:memberships</span><span class="p">,</span> <span class="ss">class_name: </span><span class="no">UserGroup</span><span class="p">,</span> <span class="ss">dependent: :destroy</span>
       <span class="n">has_many</span> <span class="ss">:users</span><span class="p">,</span> <span class="ss">through: :memberships</span>
@@ -81,11 +79,11 @@
         <span class="no">Everyone</span><span class="p">.</span><span class="nf">new</span>
       <span class="k">end</span>
     <span class="k">end</span>
-  <span class="w">
-</span></pre></td></tr></tbody></table></code></pre></figure>
+  
+</pre></td></tr></tbody></table></code></pre></figure>
 
   <h4>Accessible concern:</h4>
-  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table style="border-spacing: 0"><tbody><tr><td class="gutter gl" style="text-align: right"><pre class="lineno">1
+  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
 2
 3
 4
@@ -100,7 +98,8 @@
 13
 14
 15
-16</pre></td><td class="code"><pre>    <span class="k">module</span> <span class="nn">Accessible</span>
+16
+</pre></td><td class="code"><pre>    <span class="k">module</span> <span class="nn">Accessible</span>
       <span class="kp">extend</span> <span class="no">ActiveSupport</span><span class="o">::</span><span class="no">Concern</span>
 
       <span class="n">included</span> <span class="k">do</span> <span class="o">|</span><span class="n">into</span><span class="o">|</span>
@@ -115,11 +114,11 @@
         <span class="no">Grant</span><span class="p">.</span><span class="nf">grant!</span> <span class="ss">resource: </span><span class="nb">self</span><span class="p">,</span> <span class="ss">action: </span><span class="n">to</span><span class="p">,</span> <span class="ss">grantee: </span><span class="n">grantee</span><span class="p">,</span> <span class="ss">revocation: </span><span class="kp">true</span>
       <span class="k">end</span>
     <span class="k">end</span>
-  <span class="w">
-</span></pre></td></tr></tbody></table></code></pre></figure>
+  
+</pre></td></tr></tbody></table></code></pre></figure>
 
   <h4>Example usage for awarding and referencing permissions</h4>
-  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table style="border-spacing: 0"><tbody><tr><td class="gutter gl" style="text-align: right"><pre class="lineno">1
+  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
 2
 3
 4
@@ -139,7 +138,8 @@
 18
 19
 20
-21</pre></td><td class="code"><pre>    <span class="k">class</span> <span class="nc">GroupsController</span> <span class="o">&lt;</span> <span class="no">ApplicationController</span>
+21
+</pre></td><td class="code"><pre>    <span class="k">class</span> <span class="nc">GroupsController</span> <span class="o">&lt;</span> <span class="no">ApplicationController</span>
       <span class="n">before_action</span> <span class="ss">:fetch_group</span><span class="p">,</span> <span class="ss">only: :show</span>
 
       <span class="k">def</span> <span class="nf">create</span>
@@ -159,11 +159,11 @@
         <span class="vi">@group</span> <span class="o">=</span> <span class="no">Group</span><span class="p">.</span><span class="nf">find_by</span> <span class="ss">id: </span><span class="n">params</span><span class="p">[</span><span class="ss">:id</span><span class="p">]</span>
       <span class="k">end</span>
     <span class="k">end</span>
-  <span class="w">
-</span></pre></td></tr></tbody></table></code></pre></figure>
+  
+</pre></td></tr></tbody></table></code></pre></figure>
 
   <h4>Action &amp; Grant Models</h4>
-  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table style="border-spacing: 0"><tbody><tr><td class="gutter gl" style="text-align: right"><pre class="lineno">1
+  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
 2
 3
 4
@@ -360,7 +360,8 @@
 195
 196
 197
-198</pre></td><td class="code"><pre>    <span class="k">class</span> <span class="nc">Action</span> <span class="o">&lt;</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span>
+198
+</pre></td><td class="code"><pre>    <span class="k">class</span> <span class="nc">Action</span> <span class="o">&lt;</span> <span class="no">ActiveRecord</span><span class="o">::</span><span class="no">Base</span>
       <span class="n">validates</span> <span class="ss">:name</span><span class="p">,</span> <span class="ss">presence: </span><span class="kp">true</span><span class="p">,</span> <span class="ss">uniqueness: </span><span class="kp">true</span>
 
       <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">named</span> <span class="nb">name</span>
@@ -557,11 +558,11 @@
       <span class="k">end</span>
 
     <span class="k">end</span>
-  <span class="w">
-</span></pre></td></tr></tbody></table></code></pre></figure>
+  
+</pre></td></tr></tbody></table></code></pre></figure>
 
   <h4>Grant Resolver:</h4>
-  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table style="border-spacing: 0"><tbody><tr><td class="gutter gl" style="text-align: right"><pre class="lineno">1
+  <figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
 2
 3
 4
@@ -718,7 +719,8 @@
 155
 156
 157
-158</pre></td><td class="code"><pre>    <span class="k">module</span> <span class="nn">Authent</span>
+158
+</pre></td><td class="code"><pre>    <span class="k">module</span> <span class="nn">Authent</span>
       <span class="c1"># Polymorphic enabled relational traversal engine.</span>
       <span class="k">class</span> <span class="nc">GrantResolver</span>
         <span class="k">def</span> <span class="nf">initialize</span>
@@ -745,7 +747,7 @@
 
         <span class="c1"># (see #search)</span>
         <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">search</span> <span class="n">obj</span>
-          <span class="kp">new</span><span class="p">.</span><span class="nf">search</span> <span class="n">obj</span>
+          <span class="n">new</span><span class="p">.</span><span class="nf">search</span> <span class="n">obj</span>
         <span class="k">end</span>
 
         <span class="c1"># Perform a lookup on an object, iterating until all resolutions are complete.</span>
@@ -875,20 +877,13 @@
         <span class="k">end</span>
       <span class="k">end</span>
     <span class="k">end</span>
-  <span class="w">
-</span></pre></td></tr></tbody></table></code></pre></figure>
+  
+</pre></td></tr></tbody></table></code></pre></figure>
 </div>
 
       </div>
     </div>
     <hr>
-
-<footer>
-  <div id="meta" class="section">
-    <h5>Meta</h5>
-    <p class="small indent">This resume and related files are available as a public git reposotory at <a href="https://bitbucket.org/robacarp/resume">git@bitbucket.org:robacarp/resume.git</a></p>
-  </div>
-</footer>
 
   </body>
 </html>

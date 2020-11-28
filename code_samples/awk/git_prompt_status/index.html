@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <title>
+    
+      Resume &lt; Robert Carpenter
+    
+  </title>
+  <link rel="stylesheet" href="/css/stylesheet.css" type="text/css">
+  <link rel="stylesheet" href="/css/syntax-highlighting.css" type="text/css">
+
+  <meta charset="utf-8">
+</head>
+
+  <body>
+    <header>
+  <h1 class="pull-left">Robert Carpenter</h1>
+  <h5 class="pull-right">Boulder, Colorado</h5>
+</header>
+<hr>
+
+    <div class='page-content'>
+      <div class='wrapper'>
+        <div class="section">
+  <h3>Fast Git Prompt Details</h3>
+  <p class="indent"><strong>Written:</strong> March, 2015</p>
+  <p class="indent"><strong>Abstract:</strong>
+    AWK is a widely distributed but commonly misunderstood scripting tool. This small algorithm
+    is still in use today in my shell prompt. It was a nice excuse to take a real pass at learning
+    AWK and has served me well since.
+  </p>
+  <p class="indent">
+    <strong>Repository:</strong> <a href="https://github.com/robacarp/config_files/blob/2dcbfc69119834e3e32d1cd8277a0485b9a17258/.config/fish/functions/_gitstatus.fish"> on github</a>, as part of my dotfiles repository.
+  </p>
+
+  <p>This awk script parses the output of <code>git status --porcelain</code></p>
+  <figure class="highlight"><pre><code class="language-awk" data-lang="awk"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+</pre></td><td class="code"><pre>  <span class="kr">BEGIN</span> <span class="p">{</span>
+    <span class="nx">status</span><span class="p">[</span><span class="s2">"untracked"</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="nx">status</span><span class="p">[</span><span class="s2">"modifications"</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="nx">status</span><span class="p">[</span><span class="s2">"unmerged"</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+  <span class="p">}</span>
+  <span class="nv">$1</span> <span class="o">~</span> <span class="sr">/##/</span> <span class="p">{</span>
+    <span class="nb">split</span><span class="p">(</span><span class="nv">$2</span><span class="p">,</span> <span class="nx">branch_names</span><span class="p">,</span> <span class="s2">"."</span><span class="p">)</span>
+  <span class="p">}</span>
+  <span class="nv">$1</span> <span class="o">~</span> <span class="sr">/</span><span class="se">\?\?</span><span class="sr">/</span>       <span class="p">{</span> <span class="nx">status</span><span class="p">[</span><span class="s2">"untracked"</span><span class="p">]</span> <span class="o">++</span>     <span class="p">}</span>
+  <span class="nv">$1</span> <span class="o">~</span> <span class="sr">/M/</span>          <span class="p">{</span> <span class="nx">status</span><span class="p">[</span><span class="s2">"modifications"</span><span class="p">]</span> <span class="o">++</span> <span class="p">}</span>
+  <span class="nv">$1</span> <span class="o">~</span> <span class="sr">/</span><span class="se">[</span><span class="sr">DAU</span><span class="se">][</span><span class="sr">DAU</span><span class="se">]</span><span class="sr">/</span> <span class="p">{</span> <span class="nx">status</span><span class="p">[</span><span class="s2">"unmerged"</span><span class="p">]</span> <span class="o">++</span> <span class="p">}</span>
+  <span class="kr">END</span> <span class="p">{</span>
+    <span class="k">print</span> <span class="nx">branch_names</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">print</span> <span class="nx">status</span><span class="p">[</span><span class="s2">"untracked"</span><span class="p">]</span>
+    <span class="k">print</span> <span class="nx">status</span><span class="p">[</span><span class="s2">"modifications"</span><span class="p">]</span>
+    <span class="k">print</span> <span class="nx">status</span><span class="p">[</span><span class="s2">"unmerged"</span><span class="p">]</span>
+  <span class="p">}</span>
+  
+</pre></td></tr></tbody></table></code></pre></figure>
+
+  <h4>In use for the relevant part of my prompt function:</h4>
+
+  <figure class="highlight"><pre><code class="language-fish" data-lang="fish"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+</pre></td><td class="code"><pre>  function fish_prompt
+    set -l stats (gitstatus)
+    set -l dirty (math $stats[3] + $stats[2] + $stats[4])
+
+    # ! for modified files
+    if test $dirty -gt 0
+      echo -s -n (set_color red) ! (set_color normal)
+    end
+
+    # branch name
+    if test $stats[1]
+      echo -s -n (set_color cyan) $stats[1] " " (set_color normal)
+    end
+
+    # prompt line
+    echo -s (set_color normal)
+
+    echo -s -n (set_color $fish_color_cwd) (prompt_pwd) (set_color normal)
+    echo -s -n $
+  end
+  
+</pre></td></tr></tbody></table></code></pre></figure>
+</div>
+
+      </div>
+    </div>
+    <hr>
+
+  </body>
+</html>

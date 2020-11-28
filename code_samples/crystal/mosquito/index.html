@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <title>
+    
+      Resume &lt; Robert Carpenter
+    
+  </title>
+  <link rel="stylesheet" href="/css/stylesheet.css" type="text/css">
+  <link rel="stylesheet" href="/css/syntax-highlighting.css" type="text/css">
+
+  <meta charset="utf-8">
+</head>
+
+  <body>
+    <header>
+  <h1 class="pull-left">Robert Carpenter</h1>
+  <h5 class="pull-right">Boulder, Colorado</h5>
+</header>
+<hr>
+
+    <div class='page-content'>
+      <div class='wrapper'>
+        <div class="section">
+  <h3>Distributed Job Runner</h3>
+  <p><strong>Written:</strong> 2018-2020</p>
+  <p><strong>Abstract:</strong>
+    Mosquito provides a clean framework for a distributed asynchronous worker architecture.
+  </p>
+  <p>
+    Mosquito functioned as both a reason and method for absorbing the Crystal language and APIs,
+    and a solution to a problem I've fought with in ruby but never seen a widely adopted solution
+    which met <a href="https://github.com/robacarp/mosquito#periodic-jobs">all of my needs</a>.
+  </p>
+  <p><strong>Repository:</strong>
+  <a href="https://github.com/robacarp/mosquito">Github/robacarp/mosquito</a>
+  <figure class="highlight"><pre><code class="language-crystal" data-lang="crystal"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+97
+98
+99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
+158
+159
+160
+161
+162
+163
+164
+165
+166
+167
+168
+169
+170
+171
+</pre></td><td class="code"><pre><span class="nb">require</span> <span class="s2">"benchmark"</span>
+<span class="nb">require</span> <span class="s2">"colorize"</span>
+
+<span class="k">module</span> <span class="nn">Mosquito</span>
+  <span class="k">class</span> <span class="nc">Runner</span>
+    <span class="c1"># Minimum time in seconds to wait between checking for jobs in redis.</span>
+    <span class="kp">property</span> <span class="n">idle_wait</span> <span class="p">:</span> <span class="no">Float64</span>
+
+    <span class="c1"># How long a job config is persisted after success</span>
+    <span class="kp">property</span> <span class="n">successful_job_ttl</span> <span class="p">:</span> <span class="no">Int32</span>
+
+    <span class="c1"># How long a job config is persisted after failure</span>
+    <span class="kp">property</span> <span class="n">failed_job_ttl</span> <span class="p">:</span> <span class="no">Int32</span>
+
+    <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">start</span>
+      <span class="no">Log</span><span class="p">.</span><span class="nf">info</span> <span class="p">{</span> <span class="s2">"Mosquito is buzzing..."</span> <span class="p">}</span>
+      <span class="n">instance</span> <span class="o">=</span> <span class="kp">new</span>
+
+      <span class="n">set_config</span>
+
+      <span class="k">while</span> <span class="kp">true</span>
+        <span class="n">instance</span><span class="p">.</span><span class="nf">run</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="kp">getter</span> <span class="n">queues</span><span class="p">,</span> <span class="n">start_time</span>
+
+    <span class="k">def</span> <span class="nf">initialize</span>
+      <span class="no">Mosquito</span><span class="p">.</span><span class="nf">validate_settings</span>
+
+      <span class="vi">@idle_wait</span> <span class="o">=</span> <span class="no">Mosquito</span><span class="p">.</span><span class="nf">settings</span><span class="p">.</span><span class="nf">idle_wait</span>
+      <span class="vi">@successful_job_ttl</span> <span class="o">=</span> <span class="no">Mosquito</span><span class="p">.</span><span class="nf">settings</span><span class="p">.</span><span class="nf">successful_job_ttl</span>
+      <span class="vi">@failed_job_ttl</span> <span class="o">=</span> <span class="no">Mosquito</span><span class="p">.</span><span class="nf">settings</span><span class="p">.</span><span class="nf">failed_job_ttl</span>
+
+      <span class="vi">@queues</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">of</span> <span class="no">Queue</span>
+      <span class="vi">@start_time</span> <span class="o">=</span> <span class="mi">0</span><span class="n">_i64</span>
+      <span class="vi">@execution_timestamps</span> <span class="o">=</span> <span class="p">{}</span> <span class="k">of</span> <span class="no">Symbol</span> <span class="o">=&gt;</span> <span class="no">Time</span>
+    <span class="k">end</span>
+
+    <span class="k">def</span> <span class="nf">run</span>
+      <span class="n">set_start_time</span>
+      <span class="n">fetch_queues</span>
+      <span class="n">enqueue_periodic_tasks</span>
+      <span class="n">enqueue_delayed_tasks</span>
+      <span class="n">dequeue_and_run_tasks</span>
+      <span class="n">idle</span>
+    <span class="k">end</span>
+
+    <span class="kp">private</span> <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">set_config</span>
+      <span class="n">redis</span> <span class="o">=</span> <span class="no">Redis</span><span class="p">.</span><span class="nf">instance</span>
+      <span class="no">Base</span><span class="p">.</span><span class="nf">mapping</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">k</span><span class="p">,</span> <span class="n">job</span><span class="o">|</span>
+        <span class="n">redis</span><span class="p">.</span><span class="nf">store_hash</span><span class="p">(</span><span class="n">job</span><span class="p">.</span><span class="nf">queue</span><span class="p">.</span><span class="nf">config_q</span><span class="p">,</span> <span class="n">job</span><span class="p">.</span><span class="nf">config</span><span class="p">)</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="kp">private</span> <span class="k">def</span> <span class="nf">set_start_time</span>
+      <span class="vi">@start_time</span> <span class="o">=</span> <span class="no">Time</span><span class="p">.</span><span class="nf">utc</span><span class="p">.</span><span class="nf">to_unix</span>
+    <span class="k">end</span>
+
+    <span class="c1"># Message to be removed after version 0.12.0</span>
+    <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">idle_wait</span><span class="o">=</span><span class="p">(</span><span class="n">idle_wait</span><span class="p">)</span>
+      <span class="k">raise</span> <span class="o">&lt;&lt;-</span><span class="no">error</span><span class="sh">
+      Mosquito runner Idle Wait Time is no longer configured via Mosquito::Runner.idle_wait=(n).
+
+      Idle Wait Time is configured using the configuration block.
+
+      See: https://github.com/robacarp/mosquito/wiki/Advanced-Runner-Configuration
+</span><span class="no">      error</span>
+    <span class="k">end</span>
+
+    <span class="k">def</span> <span class="nf">idle_wait</span><span class="o">=</span><span class="p">(</span><span class="n">time_span</span> <span class="p">:</span> <span class="no">Time</span><span class="o">::</span><span class="no">Span</span><span class="p">)</span>
+      <span class="nb">self</span><span class="p">.</span><span class="nf">idle_wait</span> <span class="o">=</span> <span class="n">time_span</span><span class="p">.</span><span class="nf">total_seconds</span>
+    <span class="k">end</span>
+
+    <span class="kp">private</span> <span class="k">def</span> <span class="nf">idle</span>
+      <span class="n">delta</span> <span class="o">=</span> <span class="no">Time</span><span class="p">.</span><span class="nf">utc</span><span class="p">.</span><span class="nf">to_unix</span> <span class="o">-</span> <span class="vi">@start_time</span>
+      <span class="k">if</span> <span class="n">delta</span> <span class="o">&lt;</span> <span class="n">idle_wait</span>
+        <span class="nb">sleep</span><span class="p">(</span><span class="n">idle_wait</span> <span class="o">-</span> <span class="n">delta</span><span class="p">)</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="kp">private</span> <span class="k">def</span> <span class="nf">run_at_most</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">every</span> <span class="n">interval</span><span class="p">,</span> <span class="n">label</span> <span class="nb">name</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">block</span><span class="p">)</span>
+      <span class="n">now</span> <span class="o">=</span> <span class="no">Time</span><span class="p">.</span><span class="nf">utc</span>
+      <span class="n">last_execution</span> <span class="o">=</span> <span class="vi">@execution_timestamps</span><span class="p">[</span><span class="nb">name</span><span class="p">]?</span> <span class="o">||</span> <span class="no">Time</span><span class="p">.</span><span class="nf">unix</span> <span class="mi">0</span>
+      <span class="n">delta</span> <span class="o">=</span> <span class="n">now</span> <span class="o">-</span> <span class="n">last_execution</span>
+
+      <span class="k">if</span> <span class="n">delta</span> <span class="o">&gt;=</span> <span class="n">interval</span>
+        <span class="vi">@execution_timestamps</span><span class="p">[</span><span class="nb">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">now</span>
+        <span class="k">yield</span> <span class="n">now</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="kp">private</span> <span class="k">def</span> <span class="nf">fetch_queues</span>
+      <span class="n">run_at_most</span> <span class="ss">every: </span><span class="mf">0.25</span><span class="p">.</span><span class="nf">seconds</span><span class="p">,</span> <span class="ss">label: </span><span class="p">:</span><span class="n">fetch_queues</span> <span class="k">do</span> <span class="o">|</span><span class="n">t</span><span class="o">|</span>
+        <span class="vi">@queues</span> <span class="o">=</span> <span class="no">Queue</span><span class="p">.</span><span class="nf">list_queues</span><span class="p">.</span><span class="nf">map</span> <span class="p">{</span> <span class="o">|</span><span class="nb">name</span><span class="o">|</span> <span class="no">Queue</span><span class="p">.</span><span class="nf">new</span> <span class="nb">name</span> <span class="p">}</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="kp">private</span> <span class="k">def</span> <span class="nf">enqueue_periodic_tasks</span>
+      <span class="n">run_at_most</span> <span class="ss">every: </span><span class="mi">1</span><span class="p">.</span><span class="nf">second</span><span class="p">,</span> <span class="ss">label: :enqueue_periodic_tasks</span> <span class="k">do</span> <span class="o">|</span><span class="n">now</span><span class="o">|</span>
+        <span class="no">Base</span><span class="p">.</span><span class="nf">scheduled_tasks</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">scheduled_task</span><span class="o">|</span>
+          <span class="n">scheduled_task</span><span class="p">.</span><span class="nf">try_to_execute</span>
+        <span class="k">end</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="kp">private</span> <span class="k">def</span> <span class="nf">enqueue_delayed_tasks</span>
+      <span class="n">run_at_most</span> <span class="ss">every: </span><span class="mi">1</span><span class="p">.</span><span class="nf">second</span><span class="p">,</span> <span class="ss">label: :enqueue_delayed_tasks</span> <span class="k">do</span> <span class="o">|</span><span class="n">t</span><span class="o">|</span>
+        <span class="n">queues</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">q</span><span class="o">|</span>
+          <span class="n">overdue_tasks</span> <span class="o">=</span> <span class="n">q</span><span class="p">.</span><span class="nf">dequeue_scheduled</span>
+          <span class="k">next</span> <span class="k">unless</span> <span class="n">overdue_tasks</span><span class="p">.</span><span class="nf">any?</span>
+          <span class="no">Log</span><span class="p">.</span><span class="nf">info</span> <span class="p">{</span> <span class="s2">"Found </span><span class="si">#{</span><span class="n">overdue_tasks</span><span class="p">.</span><span class="nf">size</span><span class="si">}</span><span class="s2"> delayed tasks"</span> <span class="p">}</span>
+
+          <span class="n">overdue_tasks</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">task</span><span class="o">|</span>
+            <span class="n">q</span><span class="p">.</span><span class="nf">enqueue</span> <span class="n">task</span>
+          <span class="k">end</span>
+        <span class="k">end</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="kp">private</span> <span class="k">def</span> <span class="nf">dequeue_and_run_tasks</span>
+      <span class="n">queues</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">q</span><span class="o">|</span>
+        <span class="n">run_next_task</span> <span class="n">q</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="kp">private</span> <span class="k">def</span> <span class="nf">run_next_task</span><span class="p">(</span><span class="n">q</span> <span class="p">:</span> <span class="no">Queue</span><span class="p">)</span>
+      <span class="n">task</span> <span class="o">=</span> <span class="n">q</span><span class="p">.</span><span class="nf">dequeue</span>
+      <span class="k">return</span> <span class="k">unless</span> <span class="n">task</span>
+
+      <span class="no">Log</span><span class="p">.</span><span class="nf">info</span> <span class="p">{</span> <span class="s2">"</span><span class="si">#{</span><span class="s2">"Running"</span><span class="p">.</span><span class="nf">colorize</span><span class="p">.</span><span class="nf">magenta</span><span class="si">}</span><span class="s2"> task </span><span class="si">#{</span><span class="n">task</span><span class="si">}</span><span class="s2"> from </span><span class="si">#{</span><span class="n">q</span><span class="p">.</span><span class="nf">name</span><span class="si">}</span><span class="s2">"</span> <span class="p">}</span>
+
+      <span class="n">bench</span> <span class="o">=</span> <span class="no">Benchmark</span><span class="p">.</span><span class="nf">measure</span> <span class="k">do</span>
+        <span class="n">task</span><span class="p">.</span><span class="nf">run</span>
+      <span class="k">end</span>
+
+      <span class="k">if</span> <span class="n">bench</span><span class="p">.</span><span class="nf">total</span> <span class="o">&gt;</span> <span class="mf">0.1</span>
+        <span class="n">time</span> <span class="o">=</span> <span class="s2">"</span><span class="si">#{</span><span class="p">(</span><span class="n">bench</span><span class="p">.</span><span class="nf">total</span><span class="p">).</span><span class="nf">*</span><span class="p">(</span><span class="mi">100</span><span class="p">).</span><span class="nf">trunc</span><span class="p">.</span><span class="nf">/</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="si">}</span><span class="s2">s"</span><span class="p">.</span><span class="nf">colorize</span><span class="p">.</span><span class="nf">red</span>
+      <span class="k">elsif</span> <span class="n">bench</span><span class="p">.</span><span class="nf">total</span> <span class="o">&gt;</span> <span class="mf">0.001</span>
+        <span class="n">time</span> <span class="o">=</span> <span class="s2">"</span><span class="si">#{</span><span class="p">(</span><span class="n">bench</span><span class="p">.</span><span class="nf">total</span> <span class="o">*</span> <span class="mi">1_000</span><span class="p">).</span><span class="nf">trunc</span><span class="si">}</span><span class="s2">ms"</span><span class="p">.</span><span class="nf">colorize</span><span class="p">.</span><span class="nf">yellow</span>
+      <span class="k">elsif</span> <span class="n">bench</span><span class="p">.</span><span class="nf">total</span> <span class="o">&gt;</span> <span class="mf">0.000</span><span class="n">_001</span>
+        <span class="n">time</span> <span class="o">=</span> <span class="s2">"</span><span class="si">#{</span><span class="p">(</span><span class="n">bench</span><span class="p">.</span><span class="nf">total</span> <span class="o">*</span> <span class="mi">100_000</span><span class="p">).</span><span class="nf">trunc</span><span class="si">}</span><span class="s2">µs"</span><span class="p">.</span><span class="nf">colorize</span><span class="p">.</span><span class="nf">green</span>
+      <span class="k">elsif</span> <span class="n">bench</span><span class="p">.</span><span class="nf">total</span> <span class="o">&gt;</span> <span class="mf">0.000</span><span class="n">_000_001</span>
+        <span class="n">time</span> <span class="o">=</span> <span class="s2">"</span><span class="si">#{</span><span class="p">(</span><span class="n">bench</span><span class="p">.</span><span class="nf">total</span> <span class="o">*</span> <span class="mi">1_000_000_000</span><span class="p">).</span><span class="nf">trunc</span><span class="si">}</span><span class="s2">ns"</span><span class="p">.</span><span class="nf">colorize</span><span class="p">.</span><span class="nf">green</span>
+      <span class="k">else</span>
+        <span class="n">time</span> <span class="o">=</span> <span class="s2">"no discernible time at all"</span><span class="p">.</span><span class="nf">colorize</span><span class="p">.</span><span class="nf">green</span>
+      <span class="k">end</span>
+
+      <span class="k">if</span> <span class="n">task</span><span class="p">.</span><span class="nf">succeeded?</span>
+        <span class="no">Log</span><span class="p">.</span><span class="nf">info</span> <span class="p">{</span> <span class="s2">"</span><span class="si">#{</span><span class="s2">"Success:"</span><span class="p">.</span><span class="nf">colorize</span><span class="p">.</span><span class="nf">green</span><span class="si">}</span><span class="s2"> task </span><span class="si">#{</span><span class="n">task</span><span class="si">}</span><span class="s2"> finished and took </span><span class="si">#{</span><span class="n">time</span><span class="si">}</span><span class="s2">"</span> <span class="p">}</span>
+        <span class="n">q</span><span class="p">.</span><span class="nf">forget</span> <span class="n">task</span>
+        <span class="n">task</span><span class="p">.</span><span class="nf">delete</span> <span class="ss">in: </span><span class="n">successful_job_ttl</span>
+
+      <span class="k">else</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="s2">"</span><span class="si">#{</span><span class="s2">"Failure:"</span><span class="p">.</span><span class="nf">colorize</span><span class="p">.</span><span class="nf">red</span><span class="si">}</span><span class="s2"> task </span><span class="si">#{</span><span class="n">task</span><span class="si">}</span><span class="s2"> failed, taking </span><span class="si">#{</span><span class="n">time</span><span class="si">}</span><span class="s2">"</span>
+
+        <span class="k">if</span> <span class="n">task</span><span class="p">.</span><span class="nf">rescheduleable?</span>
+          <span class="n">interval</span> <span class="o">=</span> <span class="n">task</span><span class="p">.</span><span class="nf">reschedule_interval</span>
+          <span class="n">next_execution</span> <span class="o">=</span> <span class="no">Time</span><span class="p">.</span><span class="nf">utc</span> <span class="o">+</span> <span class="n">interval</span>
+          <span class="no">Log</span><span class="p">.</span><span class="nf">warn</span> <span class="p">{</span> <span class="s2">"</span><span class="si">#{</span><span class="n">message</span><span class="si">}</span><span class="s2"> and </span><span class="si">#{</span><span class="s2">"will run again"</span><span class="p">.</span><span class="nf">colorize</span><span class="p">.</span><span class="nf">cyan</span><span class="si">}</span><span class="s2"> in </span><span class="si">#{</span><span class="n">interval</span><span class="si">}</span><span class="s2"> (at </span><span class="si">#{</span><span class="n">next_execution</span><span class="si">}</span><span class="s2">)"</span> <span class="p">}</span>
+          <span class="n">q</span><span class="p">.</span><span class="nf">reschedule</span> <span class="n">task</span><span class="p">,</span> <span class="n">next_execution</span>
+        <span class="k">else</span>
+          <span class="no">Log</span><span class="p">.</span><span class="nf">warn</span> <span class="p">{</span> <span class="s2">"</span><span class="si">#{</span><span class="n">message</span><span class="si">}</span><span class="s2"> and </span><span class="si">#{</span><span class="s2">"cannot be rescheduled"</span><span class="p">.</span><span class="nf">colorize</span><span class="p">.</span><span class="nf">yellow</span><span class="si">}</span><span class="s2">"</span> <span class="p">}</span>
+          <span class="n">q</span><span class="p">.</span><span class="nf">banish</span> <span class="n">task</span>
+          <span class="n">task</span><span class="p">.</span><span class="nf">delete</span> <span class="ss">in: </span><span class="n">failed_job_ttl</span>
+        <span class="k">end</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+  
+</pre></td></tr></tbody></table></code></pre></figure>
+</div>
+
+      </div>
+    </div>
+    <hr>
+
+  </body>
+</html>

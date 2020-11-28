@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <title>
+    
+      Resume &lt; Robert Carpenter
+    
+  </title>
+  <link rel="stylesheet" href="/css/stylesheet.css" type="text/css">
+  <link rel="stylesheet" href="/css/syntax-highlighting.css" type="text/css">
+
+  <meta charset="utf-8">
+</head>
+
+  <body>
+    <header>
+  <h1 class="pull-left">Robert Carpenter</h1>
+  <h5 class="pull-right">Boulder, Colorado</h5>
+</header>
+<hr>
+
+    <div class='page-content'>
+      <div class='wrapper'>
+        <div class="section">
+  <h3>ICMP Ping implementation</h3>
+  <p>
+    <strong>Written:</strong>
+    2018-2020
+  </p>
+  <p><strong>Abstract:</strong>
+    I find implementing low level networking utilities to be a great way to learn a new language and better get to know what's happening behind the scenes on all the computers I use every day.
+  </p>
+  <p><strong>Repository:</strong>
+    <a href="https://github.com/robacarp/icmp.cr">github/robacarp/icmp.cr</a>
+  </p>
+  <p>
+  <figure class="highlight"><pre><code class="language-crystal" data-lang="crystal"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+</pre></td><td class="code"><pre><span class="k">module</span> <span class="nn">ICMP</span>
+  <span class="k">class</span> <span class="nc">EchoRequest</span> <span class="o">&lt;</span> <span class="no">Packet</span>
+    <span class="no">TYPE</span> <span class="o">=</span> <span class="mi">8</span><span class="n">_u16</span>
+    <span class="no">MESSAGE</span> <span class="o">=</span> <span class="s2">"ohai ICMP"</span>
+
+    <span class="kp">getter</span> <span class="n">sequence</span>
+    <span class="kp">getter</span> <span class="n">sender_id</span>
+    <span class="kp">property</span> <span class="n">responded_to</span> <span class="o">=</span> <span class="kp">false</span>
+
+    <span class="kp">getter</span> <span class="n">timestamp</span>
+    <span class="kp">getter</span> <span class="n">response</span> <span class="p">:</span> <span class="no">EchoResponse</span> <span class="o">|</span> <span class="no">Nil</span>
+    <span class="kp">getter</span> <span class="n">status</span> <span class="p">:</span> <span class="no">Symbol</span>
+
+    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="vi">@sequence</span> <span class="p">:</span> <span class="no">UInt16</span><span class="p">,</span> <span class="vi">@sender_id</span> <span class="p">:</span> <span class="no">UInt16</span><span class="p">)</span>
+      <span class="c1"># Fill the packet with the message, skipping the first 4 16bit words</span>
+      <span class="vi">@packet</span> <span class="o">=</span> <span class="no">Array</span><span class="p">(</span><span class="no">UInt16</span><span class="p">).</span><span class="nf">new</span> <span class="no">PACKET_LENGTH_16</span> <span class="k">do</span> <span class="o">|</span><span class="n">i</span><span class="o">|</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">4</span>
+          <span class="no">MESSAGE</span><span class="p">[</span> <span class="n">i</span> <span class="o">%</span> <span class="no">MESSAGE</span><span class="p">.</span><span class="nf">size</span> <span class="p">].</span><span class="nf">ord</span><span class="p">.</span><span class="nf">to_u16</span>
+        <span class="k">else</span>
+          <span class="mi">0</span><span class="n">_u16</span>
+        <span class="k">end</span>
+      <span class="k">end</span>
+
+      <span class="n">packet</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="no">TYPE</span><span class="p">.</span><span class="nf">to_u16</span> <span class="o">&lt;&lt;</span> <span class="mi">8</span><span class="p">)</span>
+      <span class="n">packet</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="n">_u16</span>
+      <span class="n">packet</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">sender_id</span>
+      <span class="n">packet</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">sequence</span>
+
+      <span class="n">packet</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">calculate_checksum</span>
+
+      <span class="vi">@status</span> <span class="o">=</span> <span class="ss">:not_sent</span>
+    <span class="k">end</span>
+
+    <span class="k">def</span> <span class="nf">render</span>
+      <span class="n">eight_bit_packet</span> <span class="o">=</span> <span class="n">packet</span><span class="p">.</span><span class="nf">map</span> <span class="k">do</span> <span class="o">|</span><span class="n">word</span><span class="o">|</span>
+        <span class="p">[(</span><span class="n">word</span> <span class="o">&gt;&gt;</span> <span class="mi">8</span><span class="p">),</span> <span class="p">(</span><span class="n">word</span> <span class="o">&amp;</span> <span class="mh">0xff</span><span class="p">)]</span>
+      <span class="k">end</span><span class="p">.</span><span class="nf">flatten</span><span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="o">&amp;</span><span class="p">.</span><span class="nf">to_u8</span><span class="p">)</span>
+
+      <span class="n">slice</span> <span class="o">=</span> <span class="no">Bytes</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="no">PACKET_LENGTH_8</span><span class="p">)</span>
+
+      <span class="n">eight_bit_packet</span><span class="p">.</span><span class="nf">each_with_index</span> <span class="k">do</span> <span class="o">|</span><span class="n">chr</span><span class="p">,</span> <span class="n">i</span><span class="o">|</span>
+        <span class="n">slice</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">chr</span>
+      <span class="k">end</span>
+
+      <span class="n">slice</span>
+    <span class="k">end</span>
+
+    <span class="k">def</span> <span class="nf">==</span><span class="p">(</span><span class="n">response</span> <span class="p">:</span> <span class="no">EchoResponse</span><span class="p">)</span>
+      <span class="n">response</span><span class="p">.</span><span class="nf">sequence</span> <span class="o">==</span> <span class="n">sequence</span> <span class="o">&amp;&amp;</span> <span class="n">response</span><span class="p">.</span><span class="nf">sender_id</span> <span class="o">==</span> <span class="n">sender_id</span>
+    <span class="k">end</span>
+
+    <span class="k">def</span> <span class="nf">responded_to?</span>
+      <span class="n">responded_to</span>
+    <span class="k">end</span>
+
+    <span class="k">def</span> <span class="nf">roundtrip_time</span>
+      <span class="n">response_packet</span> <span class="o">=</span> <span class="n">response</span>
+      <span class="k">return</span> <span class="o">-</span><span class="mi">1</span> <span class="k">unless</span> <span class="n">response_packet</span>
+
+      <span class="n">send_time</span> <span class="o">=</span> <span class="n">timestamp</span>
+      <span class="n">receive_time</span> <span class="o">=</span> <span class="n">response_packet</span><span class="p">.</span><span class="nf">timestamp</span>
+
+      <span class="k">return</span> <span class="o">-</span><span class="mi">1</span> <span class="k">unless</span> <span class="n">send_time</span>
+      <span class="k">return</span> <span class="o">-</span><span class="mi">1</span> <span class="k">unless</span> <span class="n">receive_time</span>
+
+      <span class="p">(</span><span class="n">receive_time</span> <span class="o">-</span> <span class="n">send_time</span><span class="p">).</span><span class="nf">milliseconds</span>
+    <span class="k">end</span>
+
+    <span class="k">def</span> <span class="nf">sent_at</span><span class="p">(</span><span class="vi">@timestamp</span> <span class="p">:</span> <span class="no">Time</span><span class="p">)</span>
+      <span class="vi">@status</span> <span class="o">=</span> <span class="ss">:sent</span>
+    <span class="k">end</span>
+
+    <span class="k">def</span> <span class="nf">response</span><span class="o">=</span><span class="p">(</span><span class="vi">@response</span> <span class="p">:</span> <span class="no">EchoResponse</span><span class="p">)</span>
+    <span class="k">end</span>
+
+    <span class="k">def</span> <span class="nf">status</span><span class="o">=</span><span class="p">(</span><span class="vi">@status</span> <span class="p">:</span> <span class="no">Symbol</span><span class="p">)</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+  
+</pre></td></tr></tbody></table></code></pre></figure>
+  </p>
+</div>
+
+      </div>
+    </div>
+    <hr>
+
+  </body>
+</html>

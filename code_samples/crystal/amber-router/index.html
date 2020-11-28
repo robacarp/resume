@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <title>
+    
+      Resume &lt; Robert Carpenter
+    
+  </title>
+  <link rel="stylesheet" href="/css/stylesheet.css" type="text/css">
+  <link rel="stylesheet" href="/css/syntax-highlighting.css" type="text/css">
+
+  <meta charset="utf-8">
+</head>
+
+  <body>
+    <header>
+  <h1 class="pull-left">Robert Carpenter</h1>
+  <h5 class="pull-right">Boulder, Colorado</h5>
+</header>
+<hr>
+
+    <div class='page-content'>
+      <div class='wrapper'>
+        <div class="section">
+  <h3>Amber Router</h3>
+  <p>
+    <strong>Written:</strong>
+    2017-2018
+  </p>
+  <p>
+    <strong>Abstract:</strong>
+    The Amber Router is a project contribution to the open source <a href="http://amberframework.org">Amber Framework</a>, which is a rails-like web framework in Crystal.
+  </p>
+  <p>
+    The original routset library for Amber was based on Radix::Tree, which was abandoned and incomplete enough to warrant a rewrite for speed and predictability. The rewrite was advocated and initiated by me, and ongoing open source contributions by a few community members.
+  </p>
+  <p>
+    Special consideration was given to runtime routing performance, visualizing the route tree for developers, and API compatibility with the existing Radix::Tree implementation.
+  </p>
+  <p>
+  <figure class="highlight"><pre><code class="language-crystal" data-lang="crystal"><table class="rouge-table"><tbody><tr><td class="gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+97
+98
+99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
+158
+159
+160
+161
+162
+163
+164
+165
+166
+167
+168
+169
+170
+171
+172
+173
+174
+175
+176
+177
+178
+179
+180
+181
+182
+183
+184
+185
+186
+187
+188
+189
+190
+191
+192
+193
+194
+195
+196
+197
+198
+199
+200
+201
+202
+203
+204
+205
+206
+207
+208
+209
+210
+211
+212
+213
+214
+215
+216
+217
+218
+219
+220
+221
+222
+223
+224
+</pre></td><td class="code"><pre><span class="k">module</span> <span class="nn">Amber::Router</span>
+  <span class="c1"># A tree which stores and navigates routes associated with a web application.</span>
+  <span class="c1">#</span>
+  <span class="c1"># A route set represents the branches of the tree, and each vertex</span>
+  <span class="c1"># is a `Segment`. Leaf nodes are `TerminalSegment`s.</span>
+  <span class="c1">#</span>
+  <span class="c1"># ```</span>
+  <span class="c1"># route_set = Amber::Router::RouteSet(Symbol).new</span>
+  <span class="c1"># route_set.add "/get/", :root</span>
+  <span class="c1"># route_set.add "/get/users/:id", :users</span>
+  <span class="c1"># route_set.add "/get/users/:id/books", :users_books</span>
+  <span class="c1"># route_set.add "/get/*/slug", :slug</span>
+  <span class="c1"># route_set.add "/get/*", :catch_all</span>
+  <span class="c1"># route_set.add "/get/posts/:page", :pages, {"page" =&gt; /\d+/}</span>
+  <span class="c1">#</span>
+  <span class="c1"># route_set.formatted_s # =&gt; a textual representation of the routing tree</span>
+  <span class="c1">#</span>
+  <span class="c1"># route_set.find("/get/users/3").payload           # =&gt; :users</span>
+  <span class="c1"># route_set.find("/get/users/3/books").payload     # =&gt; :users_books</span>
+  <span class="c1"># route_set.find("/get/coffee_maker/slug").payload # =&gt; :slug</span>
+  <span class="c1"># route_set.find("/get/made/up/url").payload       # =&gt; :catch_all</span>
+  <span class="c1">#</span>
+  <span class="c1"># route_set.find("/get/posts/123").found? # =&gt; true</span>
+  <span class="c1"># route_set.find("/get/posts/one").found? # =&gt; false</span>
+  <span class="c1"># ```</span>
+  <span class="k">class</span> <span class="nc">RouteSet</span><span class="p">(</span><span class="no">T</span><span class="p">)</span>
+    <span class="vi">@trunk</span> <span class="p">:</span> <span class="no">RouteSet</span><span class="p">(</span><span class="no">T</span><span class="p">)?</span>
+    <span class="vi">@route</span> <span class="p">:</span> <span class="no">T</span><span class="p">?</span>
+    <span class="vi">@segments</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">of</span> <span class="no">Segment</span><span class="p">(</span><span class="no">T</span><span class="p">)</span> <span class="o">|</span> <span class="no">TerminalSegment</span><span class="p">(</span><span class="no">T</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="vi">@root</span> <span class="o">=</span> <span class="kp">true</span><span class="p">)</span>
+      <span class="vi">@insert_count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">end</span>
+
+    <span class="c1"># Look for or create a subtree matching a given segment.</span>
+    <span class="kp">private</span> <span class="k">def</span> <span class="nf">find_subtree!</span><span class="p">(</span><span class="n">segment</span> <span class="p">:</span> <span class="no">String</span><span class="p">,</span> <span class="n">constraints</span> <span class="p">:</span> <span class="no">Hash</span><span class="p">(</span><span class="no">String</span><span class="p">,</span> <span class="no">Regex</span><span class="p">))</span> <span class="p">:</span> <span class="no">Segment</span><span class="p">(</span><span class="no">T</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">subtree</span> <span class="o">=</span> <span class="n">find_subtree</span> <span class="n">segment</span>
+        <span class="n">subtree</span>
+      <span class="k">else</span>
+        <span class="k">case</span> <span class="n">segment</span>
+        <span class="k">when</span> <span class="p">.</span><span class="nf">starts_with?</span> <span class="s1">':'</span>
+          <span class="n">new_segment</span> <span class="o">=</span> <span class="no">VariableSegment</span><span class="p">(</span><span class="no">T</span><span class="p">).</span><span class="nf">new</span><span class="p">(</span><span class="n">segment</span><span class="p">,</span> <span class="n">constraints</span><span class="p">[</span><span class="n">segment</span><span class="p">.</span><span class="nf">lchop</span><span class="p">(</span><span class="s1">':'</span><span class="p">)]?)</span>
+        <span class="k">when</span> <span class="p">.</span><span class="nf">starts_with?</span> <span class="s1">'*'</span>
+          <span class="n">new_segment</span> <span class="o">=</span> <span class="no">GlobSegment</span><span class="p">(</span><span class="no">T</span><span class="p">).</span><span class="nf">new</span><span class="p">(</span><span class="n">segment</span><span class="p">)</span>
+        <span class="k">else</span>
+          <span class="n">new_segment</span> <span class="o">=</span> <span class="no">FixedSegment</span><span class="p">(</span><span class="no">T</span><span class="p">).</span><span class="nf">new</span><span class="p">(</span><span class="n">segment</span><span class="p">)</span>
+        <span class="k">end</span>
+
+        <span class="vi">@segments</span><span class="p">.</span><span class="nf">push</span> <span class="n">new_segment</span>
+        <span class="n">new_segment</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="c1"># Look for and return a subtree matching a given segment.</span>
+    <span class="kp">private</span> <span class="k">def</span> <span class="nf">find_subtree</span><span class="p">(</span><span class="n">url_segment</span> <span class="p">:</span> <span class="no">String</span><span class="p">)</span> <span class="p">:</span> <span class="no">Segment</span><span class="p">(</span><span class="no">T</span><span class="p">)?</span>
+      <span class="vi">@segments</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">segment</span><span class="o">|</span>
+        <span class="k">case</span> <span class="n">segment</span>
+        <span class="k">when</span> <span class="no">Segment</span><span class="p">(</span><span class="no">T</span><span class="p">)</span>
+          <span class="k">break</span> <span class="n">segment</span> <span class="k">if</span> <span class="n">segment</span><span class="p">.</span><span class="nf">literal_match?</span> <span class="n">url_segment</span>
+        <span class="k">when</span> <span class="no">TerminalSegment</span><span class="p">(</span><span class="no">T</span><span class="p">)</span>
+          <span class="k">next</span>
+        <span class="k">else</span>
+          <span class="c1"># go on</span>
+        <span class="k">end</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="k">def</span> <span class="nf">routes?</span> <span class="p">:</span> <span class="no">Bool</span>
+      <span class="vi">@segments</span><span class="p">.</span><span class="nf">any?</span>
+    <span class="k">end</span>
+
+    <span class="c1"># Recursively search the routing tree for potential matches to a given path.</span>
+    <span class="kp">protected</span> <span class="k">def</span> <span class="nf">select_routes</span><span class="p">(</span><span class="n">path</span> <span class="p">:</span> <span class="no">Array</span><span class="p">(</span><span class="no">String</span><span class="p">),</span> <span class="n">path_offset</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">:</span> <span class="no">Array</span><span class="p">(</span><span class="no">RoutedResult</span><span class="p">(</span><span class="no">T</span><span class="p">))</span>
+      <span class="n">accepting_terminal_segments</span> <span class="o">=</span> <span class="n">path_offset</span> <span class="o">==</span> <span class="n">path</span><span class="p">.</span><span class="nf">size</span>
+      <span class="n">can_recurse</span> <span class="o">=</span> <span class="n">path_offset</span> <span class="o">&lt;=</span> <span class="n">path</span><span class="p">.</span><span class="nf">size</span> <span class="o">-</span> <span class="mi">1</span>
+
+      <span class="n">matches</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">of</span> <span class="no">RoutedResult</span><span class="p">(</span><span class="no">T</span><span class="p">)</span>
+
+      <span class="vi">@segments</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">segment</span><span class="o">|</span>
+        <span class="k">case</span> <span class="n">segment</span>
+        <span class="k">when</span> <span class="no">TerminalSegment</span><span class="p">(</span><span class="no">T</span><span class="p">)</span>
+          <span class="n">matches</span> <span class="o">&lt;&lt;</span> <span class="no">RoutedResult</span><span class="p">(</span><span class="no">T</span><span class="p">).</span><span class="nf">new</span> <span class="n">segment</span> <span class="k">if</span> <span class="n">accepting_terminal_segments</span>
+        <span class="k">when</span> <span class="no">FixedSegment</span><span class="p">(</span><span class="no">T</span><span class="p">),</span> <span class="no">VariableSegment</span><span class="p">(</span><span class="no">T</span><span class="p">)</span>
+          <span class="k">next</span> <span class="k">unless</span> <span class="n">can_recurse</span>
+          <span class="k">next</span> <span class="k">unless</span> <span class="n">segment</span><span class="p">.</span><span class="nf">match?</span> <span class="n">path</span><span class="p">[</span><span class="n">path_offset</span><span class="p">]</span>
+
+          <span class="n">matched_routes</span> <span class="o">=</span> <span class="n">segment</span><span class="p">.</span><span class="nf">route_set</span><span class="p">.</span><span class="nf">select_routes</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">path_offset</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+          <span class="n">matched_routes</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">matched_route</span><span class="o">|</span>
+            <span class="n">matched_route</span><span class="p">[</span><span class="n">segment</span><span class="p">.</span><span class="nf">parameter</span><span class="p">]</span> <span class="o">=</span> <span class="n">path</span><span class="p">[</span><span class="n">path_offset</span><span class="p">]</span> <span class="k">if</span> <span class="n">segment</span><span class="p">.</span><span class="nf">parametric?</span>
+            <span class="n">matches</span> <span class="o">&lt;&lt;</span> <span class="n">matched_route</span>
+          <span class="k">end</span>
+        <span class="k">when</span> <span class="no">GlobSegment</span><span class="p">(</span><span class="no">T</span><span class="p">)</span>
+          <span class="n">glob_matches</span> <span class="o">=</span> <span class="n">segment</span><span class="p">.</span><span class="nf">route_set</span><span class="p">.</span><span class="nf">reverse_select_routes</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+
+          <span class="n">glob_matches</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">glob_match</span><span class="o">|</span>
+            <span class="k">if</span> <span class="n">segment</span><span class="p">.</span><span class="nf">parametric?</span>
+              <span class="n">glob_match</span><span class="p">.</span><span class="nf">routed_result</span><span class="p">[</span><span class="n">segment</span><span class="p">.</span><span class="nf">parameter</span><span class="p">]</span> <span class="o">=</span> <span class="n">path</span><span class="p">[</span><span class="n">path_offset</span><span class="o">..</span><span class="n">glob_match</span><span class="p">.</span><span class="nf">match_position</span><span class="p">].</span><span class="nf">join</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span>
+            <span class="k">end</span>
+
+            <span class="n">matches</span> <span class="o">&lt;&lt;</span> <span class="n">glob_match</span><span class="p">.</span><span class="nf">routed_result</span>
+          <span class="k">end</span>
+        <span class="k">else</span>
+          <span class="c1"># go on</span>
+        <span class="k">end</span>
+      <span class="k">end</span>
+
+      <span class="n">matches</span>
+    <span class="k">end</span>
+
+    <span class="c1"># Recursively matches the right hand side of a glob segment.</span>
+    <span class="c1"># Allows for routes like `/a/b/*/d/e` and `/a/b/*/f/g` to coexist.</span>
+    <span class="kp">protected</span> <span class="k">def</span> <span class="nf">reverse_select_routes</span><span class="p">(</span><span class="n">path</span> <span class="p">:</span> <span class="no">Array</span><span class="p">(</span><span class="no">String</span><span class="p">))</span> <span class="p">:</span> <span class="no">Array</span><span class="p">(</span><span class="no">GlobMatch</span><span class="p">(</span><span class="no">T</span><span class="p">))</span>
+      <span class="n">matches</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">of</span> <span class="no">GlobMatch</span><span class="p">(</span><span class="no">T</span><span class="p">)</span>
+
+      <span class="vi">@segments</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">segment</span><span class="o">|</span>
+        <span class="k">case</span> <span class="n">segment</span>
+        <span class="k">when</span> <span class="no">TerminalSegment</span>
+          <span class="n">match</span> <span class="o">=</span> <span class="no">GlobMatch</span><span class="p">(</span><span class="no">T</span><span class="p">).</span><span class="nf">new</span> <span class="n">segment</span><span class="p">,</span> <span class="n">path</span>
+          <span class="n">matches</span> <span class="o">&lt;&lt;</span> <span class="n">match</span>
+        <span class="k">when</span> <span class="no">FixedSegment</span><span class="p">,</span> <span class="no">VariableSegment</span>
+          <span class="n">glob_matches</span> <span class="o">=</span> <span class="n">segment</span><span class="p">.</span><span class="nf">route_set</span><span class="p">.</span><span class="nf">reverse_select_routes</span> <span class="n">path</span>
+
+          <span class="n">glob_matches</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">glob_match</span><span class="o">|</span>
+            <span class="k">if</span> <span class="n">segment</span><span class="p">.</span><span class="nf">match?</span> <span class="n">glob_match</span><span class="p">.</span><span class="nf">current_segment</span>
+              <span class="k">if</span> <span class="n">segment</span><span class="p">.</span><span class="nf">parametric?</span>
+                <span class="n">glob_match</span><span class="p">.</span><span class="nf">routed_result</span><span class="p">[</span><span class="n">segment</span><span class="p">.</span><span class="nf">parameter</span><span class="p">]</span> <span class="o">=</span> <span class="n">glob_match</span><span class="p">.</span><span class="nf">current_segment</span>
+              <span class="k">end</span>
+
+              <span class="n">glob_match</span><span class="p">.</span><span class="nf">match_position</span> <span class="o">-=</span> <span class="mi">1</span>
+              <span class="n">matches</span> <span class="o">&lt;&lt;</span> <span class="n">glob_match</span>
+            <span class="k">end</span>
+          <span class="k">end</span>
+        <span class="k">else</span>
+          <span class="c1"># go on</span>
+        <span class="k">end</span>
+      <span class="k">end</span>
+
+      <span class="n">matches</span>
+    <span class="k">end</span>
+
+    <span class="c1"># Find a route which is compatible with a path.</span>
+    <span class="k">def</span> <span class="nf">find</span><span class="p">(</span><span class="n">path</span> <span class="p">:</span> <span class="no">String</span><span class="p">)</span> <span class="p">:</span> <span class="no">RoutedResult</span><span class="p">(</span><span class="no">T</span><span class="p">)</span>
+      <span class="n">segments</span> <span class="o">=</span> <span class="n">split_path</span> <span class="n">path</span>
+      <span class="n">matches</span> <span class="o">=</span> <span class="n">select_routes</span><span class="p">(</span><span class="n">segments</span><span class="p">)</span>
+
+      <span class="k">case</span> <span class="n">matches</span><span class="p">.</span><span class="nf">size</span>
+      <span class="k">when</span> <span class="mi">0</span>
+        <span class="no">RoutedResult</span><span class="p">(</span><span class="no">T</span><span class="p">).</span><span class="nf">new</span> <span class="kp">nil</span>
+      <span class="k">when</span> <span class="mi">1</span>
+        <span class="n">matches</span><span class="p">.</span><span class="nf">first</span>
+      <span class="k">else</span>
+        <span class="n">matches</span><span class="p">.</span><span class="nf">sort</span><span class="p">.</span><span class="nf">first</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="c1"># Returns the routes which are compatible with the provided *path*.</span>
+    <span class="k">def</span> <span class="nf">find_routes</span><span class="p">(</span><span class="n">path</span> <span class="p">:</span> <span class="no">String</span><span class="p">)</span> <span class="p">:</span> <span class="no">Array</span><span class="p">(</span><span class="no">RoutedResult</span><span class="p">(</span><span class="no">T</span><span class="p">))</span>
+      <span class="n">select_routes</span> <span class="n">split_path</span> <span class="n">path</span>
+    <span class="k">end</span>
+
+    <span class="c1"># Produces a readable, indented rendering of the tree.</span>
+    <span class="k">def</span> <span class="nf">formatted_s</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">ts</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+      <span class="vi">@segments</span><span class="p">.</span><span class="nf">reduce</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span> <span class="k">do</span> <span class="o">|</span><span class="n">str</span><span class="p">,</span> <span class="n">segment</span><span class="o">|</span>
+        <span class="n">str</span> <span class="o">+</span> <span class="n">segment</span><span class="p">.</span><span class="nf">formatted_s</span><span class="p">(</span><span class="ss">ts: </span><span class="n">ts</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="kp">private</span> <span class="k">def</span> <span class="nf">parse_subpaths</span><span class="p">(</span><span class="n">path</span> <span class="p">:</span> <span class="no">String</span><span class="p">)</span> <span class="p">:</span> <span class="no">Array</span><span class="p">(</span><span class="no">String</span><span class="p">)</span>
+      <span class="no">Parsers</span><span class="o">::</span><span class="no">OptionalSegmentResolver</span><span class="p">.</span><span class="nf">resolve</span> <span class="n">path</span>
+    <span class="k">end</span>
+
+    <span class="kp">private</span> <span class="k">def</span> <span class="nf">add_route</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">payload</span> <span class="p">:</span> <span class="no">T</span><span class="p">,</span> <span class="n">constraints</span> <span class="p">:</span> <span class="no">Hash</span><span class="p">(</span><span class="no">String</span><span class="p">,</span> <span class="no">Regex</span><span class="p">))</span> <span class="p">:</span> <span class="no">Nil</span>
+      <span class="k">if</span> <span class="n">path</span><span class="p">.</span><span class="nf">includes?</span><span class="p">(</span><span class="s1">'('</span><span class="p">)</span> <span class="o">||</span> <span class="n">path</span><span class="p">.</span><span class="nf">includes?</span><span class="p">(</span><span class="s1">')'</span><span class="p">)</span>
+        <span class="n">paths</span> <span class="o">=</span> <span class="n">parse_subpaths</span> <span class="n">path</span>
+      <span class="k">else</span>
+        <span class="n">paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">path</span><span class="p">]</span>
+      <span class="k">end</span>
+
+      <span class="n">paths</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="nb">p</span><span class="o">|</span>
+        <span class="n">segments</span> <span class="o">=</span> <span class="n">split_path</span> <span class="nb">p</span>
+        <span class="n">terminal_segment</span> <span class="o">=</span> <span class="n">add</span><span class="p">(</span><span class="n">segments</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="nb">p</span><span class="p">,</span> <span class="n">constraints</span><span class="p">)</span>
+        <span class="n">terminal_segment</span><span class="p">.</span><span class="nf">priority</span> <span class="o">=</span> <span class="vi">@insert_count</span>
+        <span class="vi">@insert_count</span> <span class="o">+=</span> <span class="mi">1</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="c1"># Add a route to the tree.</span>
+    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">payload</span> <span class="p">:</span> <span class="no">T</span><span class="p">,</span> <span class="n">constraints</span> <span class="p">:</span> <span class="no">Hash</span><span class="p">(</span><span class="no">String</span><span class="p">,</span> <span class="no">Regex</span><span class="p">)</span> <span class="o">=</span> <span class="p">{}</span> <span class="k">of</span> <span class="no">String</span> <span class="o">=&gt;</span> <span class="no">Regex</span><span class="p">)</span> <span class="p">:</span> <span class="no">Nil</span>
+      <span class="n">add_route</span> <span class="n">path</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">constraints</span>
+    <span class="k">end</span>
+
+    <span class="c1"># ditto</span>
+    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">payload</span> <span class="p">:</span> <span class="no">T</span><span class="p">,</span> <span class="n">constraints</span> <span class="p">:</span> <span class="no">Hash</span><span class="p">(</span><span class="no">Symbol</span><span class="p">,</span> <span class="no">Regex</span><span class="p">)</span> <span class="o">|</span> <span class="no">NamedTuple</span><span class="p">)</span> <span class="p">:</span> <span class="no">Nil</span>
+      <span class="n">add_route</span> <span class="n">path</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">constraints</span><span class="p">.</span><span class="nf">to_h</span><span class="p">.</span><span class="nf">transform_keys</span><span class="p">(</span><span class="o">&amp;</span><span class="p">.</span><span class="nf">to_s</span><span class="p">)</span>
+    <span class="k">end</span>
+
+    <span class="c1"># Recursively find or create subtrees matching a given path, and store the</span>
+    <span class="c1"># application route at the leaf.</span>
+    <span class="kp">protected</span> <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="n">url_segments</span> <span class="p">:</span> <span class="no">Array</span><span class="p">(</span><span class="no">String</span><span class="p">),</span> <span class="n">route</span> <span class="p">:</span> <span class="no">T</span><span class="p">,</span> <span class="n">full_path</span> <span class="p">:</span> <span class="no">String</span><span class="p">,</span> <span class="n">constraints</span> <span class="p">:</span> <span class="no">Hash</span><span class="p">(</span><span class="no">String</span><span class="p">,</span> <span class="no">Regex</span><span class="p">))</span> <span class="p">:</span> <span class="no">TerminalSegment</span><span class="p">(</span><span class="no">T</span><span class="p">)</span>
+      <span class="k">unless</span> <span class="n">url_segments</span><span class="p">.</span><span class="nf">any?</span>
+        <span class="n">segment</span> <span class="o">=</span> <span class="no">TerminalSegment</span><span class="p">(</span><span class="no">T</span><span class="p">).</span><span class="nf">new</span><span class="p">(</span><span class="n">route</span><span class="p">,</span> <span class="n">full_path</span><span class="p">)</span>
+        <span class="vi">@segments</span><span class="p">.</span><span class="nf">push</span> <span class="n">segment</span>
+        <span class="k">return</span> <span class="n">segment</span>
+      <span class="k">end</span>
+
+      <span class="n">segment</span> <span class="o">=</span> <span class="n">find_subtree!</span> <span class="n">url_segments</span><span class="p">.</span><span class="nf">shift</span><span class="p">,</span> <span class="n">constraints</span>
+      <span class="n">segment</span><span class="p">.</span><span class="nf">route_set</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="n">url_segments</span><span class="p">,</span> <span class="n">route</span><span class="p">,</span> <span class="n">full_path</span><span class="p">,</span> <span class="n">constraints</span><span class="p">)</span>
+    <span class="k">end</span>
+
+    <span class="c1"># Split a path by slashes, remove blanks, and compact the path array.</span>
+    <span class="c1">#</span>
+    <span class="c1"># ```</span>
+    <span class="c1"># split_path("/a/b/c/d") # =&gt; ["a", "b", "c", "d"]</span>
+    <span class="c1"># ```</span>
+    <span class="kp">private</span> <span class="k">def</span> <span class="nf">split_path</span><span class="p">(</span><span class="n">path</span> <span class="p">:</span> <span class="no">String</span><span class="p">)</span> <span class="p">:</span> <span class="no">Array</span><span class="p">(</span><span class="no">String</span><span class="p">)</span>
+      <span class="n">path</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="s1">'/'</span><span class="p">).</span><span class="nf">compact_map</span> <span class="k">do</span> <span class="o">|</span><span class="n">segment</span><span class="o">|</span>
+        <span class="k">next</span> <span class="kp">nil</span> <span class="k">if</span> <span class="n">segment</span><span class="p">.</span><span class="nf">blank?</span>
+        <span class="n">segment</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+  
+  
+</pre></td></tr></tbody></table></code></pre></figure>
+</div>
+
+      </div>
+    </div>
+    <hr>
+
+  </body>
+</html>
