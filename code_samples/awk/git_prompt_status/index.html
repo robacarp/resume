@@ -6,64 +6,57 @@ layout: default
   <h3>Fast Git Prompt Details</h3>
   <p class="indent"><strong>Written:</strong> March, 2015</p>
   <p class="indent"><strong>Abstract:</strong>
-    My first foray into real AWK programming came because I wanted a fast way to render
-    git repository status into my prompt. Prompt functions available around the internet
-    didn't have the rigor, detail, or speed I wanted and I'd been wanting to really learn
-    to write AWK for many years.
+    AWK is a widely distributed but commonly misunderstood scripting tool. This small algorithm
+    is still in use today in my shell prompt. It was a nice excuse to take a real pass at learning
+    AWK and has served me well since.
   </p>
   <p class="indent">
-    <strong>Compiling Status:</strong> valid, I run it hundreds of times a day.
-  </p>
-  <p class="indent">
-    <strong>Repository:</strong> <a href="https://github.com/robacarp/config_files/blob/master/.config/fish/functions/gitstatus.fish"> on github</a>, as part of my dotfiles repository.
+    <strong>Repository:</strong> <a href="https://github.com/robacarp/config_files/blob/2dcbfc69119834e3e32d1cd8277a0485b9a17258/.config/fish/functions/_gitstatus.fish"> on github</a>, as part of my dotfiles repository.
   </p>
 
-  {% highlight fish linenos %}
-    function gitstatus
-      git status --porcelain -b ^ /dev/null | awk '
-        BEGIN {
-          status["untracked"] = 0
-          status["modifications"] = 0
-          status["unmerged"] = 0
-        }
-        $1 ~ /##/ {
-          split($2, branch_names, ".")
-        }
-        $1 ~ /\?\?/       { status["untracked"] ++     }
-        $1 ~ /M/          { status["modifications"] ++ }
-        $1 ~ /[DAU][DAU]/ { status["unmerged"] ++ }
-        END {
-          print branch_names[1]
-          print status["untracked"]
-          print status["modifications"]
-          print status["unmerged"]
-        }
-       '
-    end
+  <p>This awk script parses the output of <code>git status --porcelain</code></p>
+  {% highlight awk linenos %}
+  BEGIN {
+    status["untracked"] = 0
+    status["modifications"] = 0
+    status["unmerged"] = 0
+  }
+  $1 ~ /##/ {
+    split($2, branch_names, ".")
+  }
+  $1 ~ /\?\?/       { status["untracked"] ++     }
+  $1 ~ /M/          { status["modifications"] ++ }
+  $1 ~ /[DAU][DAU]/ { status["unmerged"] ++ }
+  END {
+    print branch_names[1]
+    print status["untracked"]
+    print status["modifications"]
+    print status["unmerged"]
+  }
   {% endhighlight %}
 
   <h4>In use for the relevant part of my prompt function:</h4>
 
   {% highlight fish linenos %}
-    function fish_prompt
-      set -l stats (gitstatus)
-      set -l dirty (math $stats[3] + $stats[2] + $stats[4])
+  function fish_prompt
+    set -l stats (gitstatus)
+    set -l dirty (math $stats[3] + $stats[2] + $stats[4])
 
-      # ! for modified files
-      if test $dirty -gt 0
-        echo -s -n (set_color red) ! (set_color normal)
-      end
-
-      # branch name
-      if test $stats[1]
-        echo -s -n (set_color cyan) $stats[1] " " (set_color normal)
-      end
-
-      # prompt line
-      echo -s (set_color normal)
-
-      echo -s -n (set_color $fish_color_cwd) (prompt_pwd) (set_color normal)
-      echo -s -n $
+    # ! for modified files
+    if test $dirty -gt 0
+      echo -s -n (set_color red) ! (set_color normal)
     end
+
+    # branch name
+    if test $stats[1]
+      echo -s -n (set_color cyan) $stats[1] " " (set_color normal)
+    end
+
+    # prompt line
+    echo -s (set_color normal)
+
+    echo -s -n (set_color $fish_color_cwd) (prompt_pwd) (set_color normal)
+    echo -s -n $
+  end
   {% endhighlight %}
 </div>

@@ -9,13 +9,35 @@ layout: default
     A family member recently became a victim of this scam and asked me for help, but the decryptor available didn't look like it'd run on a mac or linux. I'm always interested in diving into some malware and bit math, so I built this ruby tool to derive the key and decrypt ransomed files.
   </p>
   <p class="indent">
-    <strong>Compiling Status:</strong> valid.
-  </p>
-  <p class="indent">
     <strong>Repository:</strong> <a href="https://github.com/robacarp/nemucod_decrypt">Github: robacarp/nemucod_decrypt</a>
   </p>
 
-  <p class="indent">
-    Since this isn't a code library, it's difficult to extract relevant code samples from the repository. One specific area of interest may be the <a href="https://github.com/robacarp/nemucod_decrypt/tree/master/uncrypt_nemucod/cli">CLI interaction classes</a> which handle interfacing with the terminal and coordinating the algorithm execution.
+  <p>
+  {% highlight ruby linenos %}
+  # Nemucod prioritizes lockdown speed over encryption viability.
+  # The cipher is a fixed key length xor'd over the first key-length
+  # bytes of the file. This gives the ransomware the ability to
+  # rapidly encrypt thousands of files but results in weak security.
+  def decrypt
+    offset = 0
+    while offset < KEY_LENGTH && offset < @crypted_file.size
+      @key_file.pos = offset
+      @crypted_file.pos = offset
+      @decrypted_file.pos = offset
+
+      key_byte     = @key_file.read 1
+      crypted_byte = @crypted_file.read 1
+      decrypt_byte = pack( unpack(key_byte) ^ unpack(crypted_byte) )
+
+      @decrypted_file.write decrypt_byte
+
+      offset += 1
+    end
+
+    @crypted_file.close
+    @key_file.close
+  end
+  {% endhighlight %}
   </p>
+
 </div>
